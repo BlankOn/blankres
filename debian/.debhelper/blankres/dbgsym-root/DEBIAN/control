@@ -1,0 +1,12 @@
+Package: blankres-dbgsym
+Source: blankres
+Version: 0.1.0-1
+Auto-Built-Package: debug-symbols
+Architecture: amd64
+Maintainer: Herpiko Dwi Aguno <herpiko@gmail.com>
+Installed-Size: 5444
+Depends: blankres (= 0.1.0-1)
+Section: debug
+Priority: optional
+Description: debug symbols for blankres
+Build-Ids: 21e3bd78c7714a06c1fec6218daf61919e96d0ea 84c0405690c0890d9b22c490269c120216b93638 873876591378d9963e3b2cb945be63fb3535e5b8 8db5930a86a4a083912c339651dc6b3ffcd9bb86
