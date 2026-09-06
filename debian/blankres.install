@@ -1,0 +1,5 @@
+packaging/client.json                 etc/blankres/
+packaging/90blankres                  etc/apt/apt.conf.d/
+packaging/coredump-blankres.conf      usr/lib/systemd/coredump.conf.d/
+packaging/blankres-gtk.desktop        usr/share/applications/
+docs/machine-identifier.md            usr/share/doc/blankres/

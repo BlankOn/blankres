@@ -1,0 +1,16 @@
+ProblemType: Crash
+Architecture: amd64
+Date: Mon Sep  7 03:34:00 2026
+DistroRelease: Ubuntu 24.04
+ExecutablePath: /usr/bin/foo
+Package: foo 1.0-1
+ProcCmdline: /usr/bin/foo --verbose
+Signal: 11
+SourcePackage: foo
+ProcStatus:
+ Name:	foo
+ State:	S (sleeping)
+ Uid:	1000	1000	1000
+Title: foo crashed with SIGSEGV
+CoreDump: base64
+ eNqrd/VxS0vMTlVIzi9KVUgpzS0AsvJKUvNKihVGxUfFR8UHvzgAlc1lBg==

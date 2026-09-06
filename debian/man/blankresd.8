@@ -1,0 +1,65 @@
+.TH BLANKRESD 8 "September 2026" "blankres 0.1.0" "System Administration"
+.SH NAME
+blankresd \- crash reporting daemon
+.SH SYNOPSIS
+.B blankresd
+.RB [ \-\-config
+.IR PATH ]
+.RB [ \-\-once ]
+.SH DESCRIPTION
+.B blankresd
+watches the systemd journal for core dumps saved by
+.BR systemd\-coredump (8)
+and for kernel oopses, and reports them to a crash database.
+.PP
+It does not register as the kernel's
+.B core_pattern
+handler. By the time a journal entry exists the core has already been written and the crashed
+process reaped, so the daemon is never on the crash path and never delays restarting a program
+that has crashed.
+.PP
+Reporting happens in two stages. Stage one sends a small event describing the crash: the
+executable, the package, and a signature computed from the stack trace in the journal message. It
+contains no memory contents, no command line and no environment, and is sent only if
+.B telemetry_enabled
+is set in the configuration.
+.PP
+Stage two is the core dump itself. It is collected only when the server's reply asks for one, and
+is then written to
+.I /var/crash/<uid>/
+for the user to review and consent to. When the server does not ask for a payload the core dump is
+deleted immediately.
+.SH OPTIONS
+.TP
+.BR \-c ", " \-\-config " " \fIPATH\fR
+Configuration file. Default
+.IR /etc/blankres/client.json .
+.TP
+.B \-\-once
+Process what is already in the journal and exit, instead of following it.
+.SH FILES
+.TP
+.I /etc/blankres/client.json
+Server endpoint, credentials, and the reporting opt-in.
+.TP
+.I /var/lib/blankres/state.json
+Journal cursor, per-signature counts, rate-limit windows, and the salt used to derive the
+pseudonymous machine identifier. The salt never leaves the machine.
+.TP
+.I /var/crash/<uid>/
+Payloads awaiting a decision, owned by the crashing user, mode 0700.
+.SH ENVIRONMENT
+.TP
+.B BLANKRES_SERVER_URL
+Override the configured server URL.
+.TP
+.B BLANKRES_TOKEN
+Override the configured fleet token.
+.TP
+.B BLANKRES_TELEMETRY
+Set to \fB1\fR to enable reporting without editing the configuration file.
+.SH SEE ALSO
+.BR blankres (1),
+.BR blankres-gtk (1),
+.BR systemd-coredump (8),
+.BR coredumpctl (1)

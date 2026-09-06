@@ -1,0 +1,43 @@
+.TH BLANKRES-APT-HOOK 1 "September 2026" "blankres 0.1.0" "User Commands"
+.SH NAME
+blankres-apt-hook \- report failed package installs and upgrades
+.SH SYNOPSIS
+.B blankres-apt-hook
+.RB [ \-\-config
+.IR PATH ]
+.RB [ \-\-dpkg-log
+.IR PATH ]
+.RB [ \-\-dry-run ]
+.SH DESCRIPTION
+Scans
+.I /var/log/dpkg.log
+for packages left in a failure state and reports them, so that a maintainer script which exits
+non-zero is reported the same way a segfault is.
+.PP
+Installed as an apt
+.B Post-Invoke
+hook and run once after each apt invocation. There is no core dump for a package failure, so this
+only ever performs stage-one reporting. It exits quietly and successfully whenever reporting is
+disabled or the server is unreachable: breaking
+.B apt install
+in order to report a bug would be a worse failure than losing the report.
+.SH OPTIONS
+.TP
+.BR \-c ", " \-\-config " " \fIPATH\fR
+Configuration file. Default
+.IR /etc/blankres/client.json .
+.TP
+.BI \-\-dpkg-log " PATH"
+Log to inspect. Default
+.IR /var/log/dpkg.log .
+.TP
+.B \-\-dry-run
+Print the events that would be sent, and send nothing.
+.SH FILES
+.TP
+.I /var/lib/blankres/apt-hook.json
+Timestamp of the newest failure already reported, so a failure is not re-reported on every
+subsequent apt run.
+.SH SEE ALSO
+.BR blankresd (8),
+.BR apt.conf (5)

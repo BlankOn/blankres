@@ -1,0 +1,48 @@
+.TH BLANKRES 1 "September 2026" "blankres 0.1.0" "User Commands"
+.SH NAME
+blankres \- review and send crash reports
+.SH SYNOPSIS
+.B blankres
+.RI [ OPTIONS ]
+.I COMMAND
+.RI [ REPORT ]
+.SH DESCRIPTION
+Reviews crash reports that
+.BR blankresd (8)
+has left awaiting a decision, and sends them if you choose to. It is the terminal equivalent of
+.BR blankres-gtk (1)
+and applies the same rules: a report is only ever uploaded by an explicit
+.B send
+command.
+.PP
+.I REPORT
+may be a path or, when unambiguous, just the program name.
+.SH COMMANDS
+.TP
+.B list
+List crashes waiting for a decision.
+.TP
+.BI show " REPORT"
+Print every field that would be transmitted, including the size of the memory snapshot.
+.TP
+.BI send " REPORT"
+Upload the report, then delete it and its core dump.
+.TP
+.BI discard " REPORT"
+Delete the report and its core dump without sending anything.
+.TP
+.BI ignore " REPORT"
+Discard it and record the signature so this problem is never raised again.
+.TP
+.B ignored
+List the signatures this user has chosen to ignore.
+.SH OPTIONS
+.TP
+.BR \-c ", " \-\-config " " \fIPATH\fR
+Configuration file. Default
+.IR /etc/blankres/client.json .
+.SH EXIT STATUS
+Non-zero if the named report does not exist, is ambiguous, or could not be uploaded.
+.SH SEE ALSO
+.BR blankresd (8),
+.BR blankres-gtk (1)

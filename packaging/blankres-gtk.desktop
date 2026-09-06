@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Crash Reporting
+Comment=Review crash reports before they are sent
+Exec=/usr/bin/blankres-gtk
+Icon=dialog-warning
+Terminal=false
+Categories=System;Monitor;
+Keywords=crash;report;bug;
+StartupNotify=true

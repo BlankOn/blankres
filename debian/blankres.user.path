@@ -1,0 +1,9 @@
+[Unit]
+Description=Watch for crash reports awaiting this user's decision
+
+[Path]
+# Only reports the server actually asked for are ever written here, so this triggers rarely.
+PathExistsGlob=/var/crash/%U/*.report
+
+[Install]
+WantedBy=default.target

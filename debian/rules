@@ -1,0 +1,38 @@
+#!/usr/bin/make -f
+
+# The workspace also contains the ingest server, which is a separate deployment concern and is
+# deliberately not shipped in this package.
+CLIENT_CRATES := -p blankres-daemon -p blankres-cli -p blankres-gtk -p blankres-hooks
+
+# Keep cargo's downloads and target directory inside the build tree rather than in the builder's
+# home, so the build is self-contained and repeatable.
+export CARGO_HOME := $(CURDIR)/debian/cargo
+export CARGO_TARGET_DIR := $(CURDIR)/target
+
+%:
+	dh $@
+
+override_dh_auto_configure:
+
+override_dh_auto_build:
+	cargo build --release --locked $(CLIENT_CRATES)
+
+override_dh_auto_test:
+	# The end-to-end suites need a Postgres and a journal; the offline ones run here.
+	cargo test --release --locked -p blankres-report -p blankres-collect -p blankres-session -p blankres-hooks
+
+override_dh_auto_install:
+	install -D -m 0755 target/release/blankresd          debian/blankres/usr/bin/blankresd
+	install -D -m 0755 target/release/blankres           debian/blankres/usr/bin/blankres
+	install -D -m 0755 target/release/blankres-gtk       debian/blankres/usr/bin/blankres-gtk
+	install -D -m 0755 target/release/blankres-apt-hook  debian/blankres/usr/bin/blankres-apt-hook
+	install -d -m 0755 debian/blankres/var/crash
+	install -d -m 0700 debian/blankres/var/lib/blankres
+
+override_dh_auto_clean:
+	rm -rf debian/cargo
+
+# The daemon is installed enabled but does nothing until `telemetry_enabled` is set: the opt-in is
+# the gate, not the unit state.
+override_dh_installsystemd:
+	dh_installsystemd --name=blankresd

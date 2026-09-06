@@ -1,0 +1,29 @@
+[package]
+name = "blankres-daemon"
+description = "blankresd: turns systemd-coredump journal entries into crash telemetry"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "blankresd"
+path = "src/main.rs"
+
+[dependencies]
+blankres-report.workspace = true
+blankres-collect.workspace = true
+blankres-client.workspace = true
+blankres-session.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+clap.workspace = true
+
+[dev-dependencies]
+tempfile = "3"
+blankres-server.workspace = true
+axum.workspace = true

@@ -1,0 +1,16 @@
+[package]
+name = "blankres-report"
+description = "Report model, crash signatures and serialization for blankres"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+sha2.workspace = true
+hex.workspace = true
+base64.workspace = true
+flate2.workspace = true

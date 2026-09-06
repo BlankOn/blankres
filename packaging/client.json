@@ -1,0 +1,12 @@
+{
+  "endpoint": {
+    "url": "https://crashes.example.org",
+    "token": "",
+    "timeout_secs": 30
+  },
+  "telemetry_enabled": false,
+  "state_dir": "/var/lib/blankres",
+  "crash_dir": "/var/crash",
+  "kernel_oops": true,
+  "delete_declined_cores": true
+}

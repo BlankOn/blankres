@@ -1,0 +1,44 @@
+[Unit]
+Description=blankres crash reporting daemon
+Documentation=https://github.com/herpiko/blankres
+After=systemd-journald.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=exec
+ExecStart=/usr/bin/blankresd --config /etc/blankres/client.json
+Restart=on-failure
+RestartSec=30
+
+# The daemon is never on the crash path, so it has no reason to compete with foreground work.
+# Idle I/O scheduling matters most: the expensive part of a report is reading package metadata,
+# and doing that at normal priority is exactly what makes apport feel like it stalls the machine.
+Nice=15
+CPUWeight=20
+IOWeight=10
+IOSchedulingClass=idle
+MemoryMax=192M
+TasksMax=32
+
+# It reads dpkg metadata, the journal and saved core dumps, and writes only its own state and the
+# per-user crash directories. Nothing else needs to be reachable.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/var/lib/blankres /var/crash /var/lib/systemd/coredump
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+StateDirectory=blankres
+StateDirectoryMode=0700
+
+[Install]
+WantedBy=multi-user.target

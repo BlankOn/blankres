@@ -1,0 +1,11 @@
+# Reading /var/lib/dpkg/info/*.list and *.md5sums directly is deliberate and is the point of the
+# design, not an oversight. The alternative lintian has in mind — forking dpkg-query per lookup and
+# running `dpkg --verify` for integrity — is precisely the cost that makes apport slow: `dpkg
+# --verify` md5sums every file in a package, where this reads a prebuilt in-memory index and hashes
+# only the handful of objects mapped at crash time. The daemon treats the dpkg database as
+# read-only and never modifies it.
+blankres: uses-dpkg-database-directly [usr/bin/blankresd]
+blankres: uses-dpkg-database-directly [usr/bin/blankres-apt-hook]
+
+# Not an upload to the Debian archive, so there is no bug to close.
+blankres: initial-upload-closes-no-bugs

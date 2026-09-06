@@ -1,0 +1,15 @@
+# Automatically added by dh_installsystemduser/14.3
+if [ "$1" = "purge" ]; then
+	deb-systemd-helper --user purge 'blankres.path' >/dev/null || true
+fi
+# End automatically added section
+# Automatically added by dh_installsystemd/14.3
+if [ "$1" = remove ] && [ -d /run/systemd/system ] ; then
+	systemctl --system daemon-reload >/dev/null || true
+fi
+# End automatically added section
+# Automatically added by dh_installsystemd/14.3
+if [ "$1" = "purge" ]; then
+	deb-systemd-helper purge 'blankresd.service' >/dev/null || true
+fi
+# End automatically added section

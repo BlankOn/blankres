@@ -1,0 +1,4 @@
+./debian/man/blankresd.8
+./debian/man/blankres.1
+./debian/man/blankres-gtk.1
+./debian/man/blankres-apt-hook.1

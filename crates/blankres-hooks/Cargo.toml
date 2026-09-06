@@ -1,0 +1,30 @@
+[package]
+name = "blankres-hooks"
+description = "Captures dpkg/apt install and upgrade failures as blankres reports"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "blankres-apt-hook"
+path = "src/main.rs"
+
+[lib]
+name = "blankres_hooks"
+path = "src/lib.rs"
+
+[dependencies]
+blankres-report.workspace = true
+blankres-client.workspace = true
+blankres-collect.workspace = true
+blankres-daemon.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+clap.workspace = true
+
+[dev-dependencies]
+tempfile = "3"

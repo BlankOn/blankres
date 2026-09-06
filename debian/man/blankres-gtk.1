@@ -1,0 +1,29 @@
+.TH BLANKRES-GTK 1 "September 2026" "blankres 0.1.0" "User Commands"
+.SH NAME
+blankres-gtk \- review crash reports before they are sent
+.SH SYNOPSIS
+.B blankres-gtk
+.SH DESCRIPTION
+A desktop window for deciding what happens to a crash report.
+.PP
+The window opens only for crashes the crash server has actually asked for a full payload for, which
+on a well-populated crash database is a small fraction of them. A core dump is a copy of the
+crashed process's memory and may contain documents, keystrokes, session cookies or private keys, so
+the window states its size in plain language and lists every field that would be transmitted.
+Nothing is uploaded until
+.B Send report
+is pressed.
+.PP
+.B Never for this problem
+records the crash signature in the user's own crash directory, which the daemon then honours.
+.PP
+Started automatically by a systemd user path unit when a report appears, and available from the
+desktop menu as \(lqCrash Reporting\(rq.
+.SH ENVIRONMENT
+.TP
+.B BLANKRES_CONFIG
+Configuration file to read instead of
+.IR /etc/blankres/client.json .
+.SH SEE ALSO
+.BR blankres (1),
+.BR blankresd (8)

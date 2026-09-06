@@ -1,0 +1,33 @@
+Source: blankres
+Section: utils
+Priority: optional
+Maintainer: Herpiko Dwi Aguno <herpiko@gmail.com>
+Build-Depends: debhelper-compat (= 13),
+               cargo,
+               rustc (>= 1.82),
+               pkg-config,
+               libgtk-4-dev,
+               libadwaita-1-dev
+Standards-Version: 4.7.0
+Homepage: https://github.com/herpiko/blankres
+Rules-Requires-Root: no
+
+Package: blankres
+Architecture: any
+Depends: ${shlibs:Depends},
+         ${misc:Depends},
+         systemd-coredump
+Description: crash reporting client and daemon
+ blankres turns program crashes into crash reports and sends them to a crash
+ database. It consumes the core dumps that systemd-coredump has already saved
+ rather than taking over the kernel's core_pattern, so handling a crash never
+ delays restarting the program that crashed.
+ .
+ Reporting happens in two stages. A small telemetry event describing the crash
+ is sent automatically once the user has opted in; it contains no memory
+ contents, no command line and no environment. The full payload, including the
+ core dump, is collected and uploaded only when the server asks for one and the
+ user agrees to it in the desktop window.
+ .
+ This package contains the daemon, the GTK desktop front end, the command line
+ client and the apt failure hook.

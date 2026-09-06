@@ -1,0 +1,52 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/blankres-report",
+    "crates/blankres-collect",
+    "crates/blankres-client",
+    "crates/blankres-server",
+    "crates/blankres-session",
+    "crates/blankres-daemon",
+    "crates/blankres-cli",
+    "crates/blankres-gtk",
+    "crates/blankres-hooks",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.82"
+license = "GPL-3.0-or-later"
+repository = "https://github.com/herpiko/blankres"
+
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+sha2 = "0.10"
+hex = "0.4"
+base64 = "0.22"
+flate2 = "1"
+md-5 = "0.10"
+blankres-report = { path = "crates/blankres-report" }
+blankres-collect = { path = "crates/blankres-collect" }
+blankres-client = { path = "crates/blankres-client" }
+blankres-server = { path = "crates/blankres-server" }
+blankres-session = { path = "crates/blankres-session" }
+blankres-daemon = { path = "crates/blankres-daemon" }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "process", "io-util", "fs", "time", "signal", "sync"] }
+tokio-util = { version = "0.7", features = ["io"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "multipart", "stream", "rustls-tls"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+clap = { version = "4", features = ["derive"] }
+axum = { version = "0.8", features = ["multipart"] }
+tower-http = { version = "0.6", features = ["trace", "limit"] }
+sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "tls-rustls", "postgres", "macros", "migrate", "json", "chrono", "uuid"] }
+chrono = { version = "0.4", default-features = false, features = ["clock", "serde"] }
+uuid = { version = "1", features = ["v4"] }
+rand = "0.8"
+futures-util = "0.3"
+gtk4 = "0.11"
+libadwaita = "0.9"
+async-channel = "2"

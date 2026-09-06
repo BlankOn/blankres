@@ -1,0 +1,9 @@
+[Unit]
+Description=blankres crash report review
+Documentation=https://github.com/herpiko/blankres
+
+[Service]
+Type=exec
+ExecStart=/usr/bin/blankres-gtk
+# Started by blankres.path when a report appears; it exits once the user has decided.
+Restart=no

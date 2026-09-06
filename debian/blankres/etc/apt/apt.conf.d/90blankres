@@ -1,0 +1,6 @@
+// Report packages whose install or upgrade failed.
+//
+// The hook runs once after each apt invocation and exits immediately when nothing failed or when
+// crash reporting is disabled. It never fails the apt run: breaking `apt install` in order to
+// report a bug would be a worse outcome than losing the report.
+DPkg::Post-Invoke { "if [ -x /usr/bin/blankres-apt-hook ]; then /usr/bin/blankres-apt-hook || true; fi"; };
