@@ -1,3 +1,23 @@
+blankres (0.2.0) unstable; urgency=medium
+
+  * Show a crash to the user even when the crash server cannot be reached.
+    The daemon previously spooled the report and returned silently, so a
+    crash that happened while the server was down was never surfaced at all.
+  * Ask the server whether it wants a payload while preparing the local half
+    of one, rather than one after the other, so the window never waits on the
+    network. The request now has a short deadline, configurable as
+    directive_timeout_secs.
+  * Default to https://kres.blankonlinux.id as the crash server.
+  * Make "Don't send" the default action and place it rightmost. Uploading a
+    snapshot of one's own process memory should be deliberate.
+  * Translate the interface into Bahasa Indonesia, selected from the locale.
+  * Stop the window handing its activation to an already running instance,
+    which made it show a stale crash directory or nothing at all.
+  * Stop tracking build output in the source tree, which broke source-only
+    builds elsewhere.
+
+ -- Herpiko Dwi Aguno <herpiko@gmail.com>  Mon, 07 Sep 2026 21:16:34 +0700
+
 blankres (0.1.0) unstable; urgency=medium
 
   * Initial release.

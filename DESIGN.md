@@ -90,7 +90,7 @@ make logs        # follow the server
 make down        # stop; add KEEP=0 to delete the stored crash data too
 ```
 
-`make build-docker` builds just the image (`blankres-ingest:0.1.0`). It is the server only: the
+`make build-docker` builds just the image (`blankres-ingest:0.2.0`). It is the server only: the
 client reads the host's journal, dpkg database and saved core dumps, so it runs on the machine
 being reported on and ships as a `.deb` instead.
 

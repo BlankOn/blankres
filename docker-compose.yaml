@@ -33,7 +33,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: blankres-ingest:${TAG:-0.1.0}
+    image: blankres-ingest:${TAG:-0.2.0}
     depends_on:
       postgres:
         condition: service_healthy
