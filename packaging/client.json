@@ -6,6 +6,7 @@
   },
   "telemetry_enabled": false,
   "directive_timeout_secs": 3,
+  "rate_limit_per_hour": 6,
   "state_dir": "/var/lib/blankres",
   "crash_dir": "/var/crash",
   "kernel_oops": true,

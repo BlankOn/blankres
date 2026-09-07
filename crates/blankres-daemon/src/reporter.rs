@@ -18,7 +18,7 @@ use blankres_session::{write_pending, Declined};
 use crate::config::ClientConfig;
 use crate::journal::now_secs;
 use crate::spool::Spool;
-use crate::state::{State, RATE_LIMIT};
+use crate::state::State;
 
 /// What happened to one crash, for logging and for tests.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -74,10 +74,12 @@ impl<F: Filesystem + Clone, P: PackageBackend> Reporter<F, P> {
         let executable = record.executable().unwrap_or("unknown").to_owned();
 
         // Cheapest possible gate, before any collection at all.
+        let limit = self.config.rate_limit_per_hour;
         let seen = state.charge_rate_limit(&executable, now_secs());
-        if seen >= RATE_LIMIT {
+        if seen >= limit {
             return Ok(Outcome::Suppressed(format!(
-                "{executable} is over its rate limit ({seen} in the last hour)"
+                "{executable} is over its rate limit: {seen} crashes in the last hour, limit \
+                 {limit}. Raise rate_limit_per_hour to report more."
             )));
         }
 

@@ -122,6 +122,7 @@ fn reporter(
         kernel_oops: false,
         delete_declined_cores: true,
         directive_timeout_secs: 3,
+        rate_limit_per_hour: RATE_LIMIT,
     };
 
     let client = Client::new(config.endpoint.clone()).expect("client");
@@ -418,5 +419,76 @@ async fn a_slow_server_does_not_hold_the_crash_back() {
     assert!(
         elapsed < std::time::Duration::from_secs(10),
         "the 3 second deadline should have fired, took {elapsed:?}"
+    );
+}
+
+#[tokio::test]
+async fn the_rate_limit_is_configurable() {
+    // The default of six an hour is right for a desktop and wrong for anyone testing, which is
+    // exactly the situation where a silently suppressed crash looks like a broken daemon.
+    let dir = tempfile::tempdir().expect("temp dir");
+    let Some(url) = start_server(5, &dir.path().join("store")).await else {
+        eprintln!("skipping: set BLANKRES_TEST_DATABASE_URL to run daemon e2e tests");
+        return;
+    };
+
+    let fs = RealFs;
+    let system = system_info(&fs, "6.8.0-test".to_owned());
+    let index = DpkgIndex::build_default(&fs);
+    let config = ClientConfig {
+        endpoint: Endpoint::new(&url, TOKEN),
+        telemetry_enabled: true,
+        state_dir: dir.path().join("state"),
+        crash_dir: dir.path().join("crash"),
+        kernel_oops: false,
+        delete_declined_cores: true,
+        directive_timeout_secs: 3,
+        rate_limit_per_hour: 2,
+    };
+    let reporter = Reporter::new(
+        Stage1Collector::new(
+            fs,
+            DpkgBackend::new(
+                fs,
+                index.clone(),
+                "/var/lib/dpkg/info",
+                Path::new("/var/lib/dpkg/status"),
+            ),
+            system,
+            "test-machine".to_owned(),
+        ),
+        Stage2Collector::new(
+            fs,
+            DpkgBackend::new(
+                fs,
+                index,
+                "/var/lib/dpkg/info",
+                Path::new("/var/lib/dpkg/status"),
+            ),
+        ),
+        Client::new(config.endpoint.clone()).expect("client"),
+        config.clone(),
+        Spool::new(config.spool_dir()).expect("spool"),
+    );
+
+    let (record, _core) = record(dir.path(), &unique("configurable"));
+    let mut state = State::default();
+
+    let mut suppressed = 0;
+    for _ in 0..5 {
+        if let Outcome::Suppressed(reason) = reporter
+            .handle_coredump(&record, &mut state)
+            .await
+            .expect("handled")
+        {
+            // The message has to name the limit, or the operator cannot act on it.
+            assert!(reason.contains("limit 2"), "{reason}");
+            suppressed += 1;
+        }
+    }
+
+    assert_eq!(
+        suppressed, 3,
+        "a limit of 2 should suppress the last three of five"
     );
 }

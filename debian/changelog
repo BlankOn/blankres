@@ -1,12 +1,9 @@
-blankres (0.2.3) unstable; urgency=medium
+blankres (0.2.4) unstable; urgency=medium
 
-  * Accept reports without a token when the server has none configured, so an
-    open endpoint is a deliberate deployment rather than a server that
-    rejects everything. The mode is stated at startup, with a warning when it
-    is open.
-  * Serve a dashboard at / listing the 50 most recent crashes, styled after
-    the IRGSH chief dashboard and refreshed with htmx. Report fields come
-    from clients and are escaped.
+  * Make the per-executable rate limit configurable as rate_limit_per_hour,
+    and log suppression at info rather than debug. Six crashes an hour is
+    right for a desktop and wrong for anyone testing, and a silently
+    suppressed crash is indistinguishable from a broken daemon.
 
- -- Herpiko Dwi Aguno <herpiko@gmail.com>  Tue, 08 Sep 2026 00:45:16 +0700
-
+ -- Herpiko Dwi Aguno <herpiko@gmail.com>  Tue, 08 Sep 2026 00:55:45 +0700
+\n

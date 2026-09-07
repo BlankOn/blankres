@@ -28,6 +28,11 @@ pub struct ClientConfig {
     /// their program vanished, not a batch job.
     #[serde(default = "default_directive_timeout")]
     pub directive_timeout_secs: u64,
+    /// How many crashes of one executable to report per hour before suppressing the rest. Guards
+    /// against a program stuck in a crash loop burying everything else, at the cost of hiding
+    /// repeated crashes of something genuinely broken. Raise it when testing.
+    #[serde(default = "default_rate_limit")]
+    pub rate_limit_per_hour: u32,
     /// Watch the kernel journal for oopses as well as user-space crashes.
     #[serde(default = "default_true")]
     pub kernel_oops: bool,
@@ -49,6 +54,10 @@ fn default_directive_timeout() -> u64 {
     3
 }
 
+fn default_rate_limit() -> u32 {
+    6
+}
+
 fn default_true() -> bool {
     true
 }
@@ -59,6 +68,7 @@ impl Default for ClientConfig {
             endpoint: Endpoint::new(DEFAULT_SERVER, ""),
             telemetry_enabled: false,
             directive_timeout_secs: default_directive_timeout(),
+            rate_limit_per_hour: default_rate_limit(),
             state_dir: default_state_dir(),
             crash_dir: default_crash_dir(),
             kernel_oops: true,
@@ -89,6 +99,11 @@ impl ClientConfig {
         }
         if std::env::var("BLANKRES_TELEMETRY").as_deref() == Ok("1") {
             config.telemetry_enabled = true;
+        }
+        if let Ok(limit) = std::env::var("BLANKRES_RATE_LIMIT_PER_HOUR") {
+            if let Ok(limit) = limit.parse() {
+                config.rate_limit_per_hour = limit;
+            }
         }
 
         Ok(config)

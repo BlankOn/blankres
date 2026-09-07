@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
-/// How many events for one executable are allowed per window before suppression kicks in.
+/// Default for `rate_limit_per_hour`; the effective value comes from the client configuration.
 pub const RATE_LIMIT: u32 = 6;
 /// Length of that window, in seconds.
 pub const RATE_WINDOW_SECS: u64 = 3600;

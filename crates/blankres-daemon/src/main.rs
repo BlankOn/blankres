@@ -203,7 +203,9 @@ async fn flush_oops(
 
 fn log_outcome(outcome: &Outcome) {
     match outcome {
-        Outcome::Suppressed(reason) => tracing::debug!(%reason, "crash suppressed"),
+        // Info, not debug. A crash that is deliberately not reported still needs to be
+        // explicable, or the daemon looks broken to anyone testing it.
+        Outcome::Suppressed(reason) => tracing::info!(%reason, "crash suppressed"),
         Outcome::ReportedCoreDropped { signature } => {
             tracing::info!(signature = %&signature[..12], "reported; core not wanted, removed")
         }
