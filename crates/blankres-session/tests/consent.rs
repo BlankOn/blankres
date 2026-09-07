@@ -1,6 +1,7 @@
 //! The consent layer. These cover what both front ends actually invoke when a button is pressed,
 //! so the CLI and the GTK window cannot drift apart in what they promise the user.
 
+use blankres_i18n::{Catalog, Lang};
 use blankres_report::event::{CrashEvent, PackageInfo, PayloadDirective, ReportKind, SystemInfo};
 use blankres_report::report::{Attachment, PendingUpload, Report, CORE_DUMP_ATTACHMENT};
 use blankres_report::signature::{Precision, Signature};
@@ -9,6 +10,11 @@ use blankres_session::{
 };
 
 const UID: u32 = 1000;
+
+/// Assertions here are on English text, so the ambient locale must not decide the outcome.
+fn english() -> Catalog {
+    Catalog::new(Lang::English)
+}
 
 fn pending(core: &std::path::Path, expires_in: i64) -> PendingUpload {
     let now = now_secs();
@@ -102,7 +108,7 @@ fn another_users_reports_are_not_listed() {
 fn the_disclosure_names_every_field_that_would_be_sent() {
     let (_dir, store, _core) = fixture(3600);
     let entry = store.list().remove(0);
-    let session = ReportSession::new(&store, entry);
+    let session = ReportSession::with_catalog(&store, entry, english());
     let rows = session.disclosure();
 
     let labels: Vec<&str> = rows.iter().map(|(label, _)| label.as_str()).collect();
@@ -138,7 +144,7 @@ fn the_disclosure_names_every_field_that_would_be_sent() {
 #[test]
 fn the_transfer_summary_states_the_size() {
     let (_dir, store, _core) = fixture(3600);
-    let session = ReportSession::new(&store, store.list().remove(0));
+    let session = ReportSession::with_catalog(&store, store.list().remove(0), english());
     assert_eq!(session.transfer_summary(), "Includes 4.0 KB");
 }
 
@@ -148,7 +154,7 @@ fn discarding_removes_both_the_report_and_the_core() {
     let entry = store.list().remove(0);
     let path = entry.path.clone();
 
-    ReportSession::new(&store, entry).discard();
+    ReportSession::with_catalog(&store, entry, english()).discard();
 
     assert!(!path.exists(), "the report file must be gone");
     assert!(
@@ -164,7 +170,7 @@ fn declining_forever_records_the_signature_for_the_daemon() {
     let entry = store.list().remove(0);
     let signature = entry.pending.report.event.signature.hash.clone();
 
-    ReportSession::new(&store, entry)
+    ReportSession::with_catalog(&store, entry, english())
         .decline_forever()
         .expect("records the decision");
 
@@ -192,7 +198,7 @@ async fn an_expired_report_refuses_to_upload() {
     // user's bandwidth on a payload that gets rejected.
     let (_dir, store, core) = fixture(-10);
     let entry = store.list().remove(0);
-    let session = ReportSession::new(&store, entry);
+    let session = ReportSession::with_catalog(&store, entry, english());
 
     assert!(!session.is_actionable(now_secs()));
 

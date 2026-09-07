@@ -3,7 +3,7 @@
 //! This window exists for one reason: a core dump is a copy of the crashed process's memory, and
 //! it can contain documents, keystrokes, session cookies and private keys. Nobody can meaningfully
 //! agree to send that on the strength of "an error report". So the window states the size in
-//! plain language and shows, verbatim, every field that would be transmitted — and nothing leaves
+//! plain language and shows, verbatim, every field that would be transmitted. Nothing leaves
 //! the machine until the user presses Send.
 //!
 //! Stage 1 never reaches this window. By the time it opens, the server has already said it wants
@@ -11,6 +11,7 @@
 
 use adw::prelude::*;
 use blankres_client::Client;
+use blankres_i18n::Catalog;
 use blankres_session::{human_size, PendingEntry, ReportSession};
 use gtk4 as gtk;
 use gtk4::glib;
@@ -28,7 +29,7 @@ pub enum UploadResult {
 pub fn build_window(app: &adw::Application, context: AppContext) -> adw::ApplicationWindow {
     let window = adw::ApplicationWindow::builder()
         .application(app)
-        .title("Crash Reporting")
+        .title(context.catalog.app_title())
         .default_width(720)
         .default_height(640)
         .build();
@@ -39,7 +40,7 @@ pub fn build_window(app: &adw::Application, context: AppContext) -> adw::Applica
     let header = adw::HeaderBar::new();
     let settings = gtk::Button::builder()
         .icon_name("emblem-system-symbolic")
-        .tooltip_text("Crash reporting settings")
+        .tooltip_text(context.catalog.settings_tooltip())
         .build();
     settings.connect_clicked({
         let window = window.clone();
@@ -51,7 +52,7 @@ pub fn build_window(app: &adw::Application, context: AppContext) -> adw::Applica
 
     let entries = context.store.list();
     if entries.is_empty() {
-        layout.append(&empty_state());
+        layout.append(&empty_state(&context.catalog));
     } else {
         layout.append(&report_view(&window, &toasts, &context, entries));
     }
@@ -61,11 +62,11 @@ pub fn build_window(app: &adw::Application, context: AppContext) -> adw::Applica
     window
 }
 
-fn empty_state() -> gtk::Widget {
+fn empty_state(catalog: &Catalog) -> gtk::Widget {
     let status = adw::StatusPage::builder()
         .icon_name("emblem-ok-symbolic")
-        .title("Nothing to report")
-        .description("No crashes are waiting for your decision.")
+        .title(catalog.nothing_to_report())
+        .description(catalog.nothing_to_report_detail())
         .vexpand(true)
         .build();
     status.upcast()
@@ -109,7 +110,8 @@ fn crash_page(
     context: &AppContext,
     entry: PendingEntry,
 ) -> gtk::Widget {
-    let session = ReportSession::new(&context.store, entry.clone());
+    let catalog = context.catalog;
+    let session = ReportSession::with_catalog(&context.store, entry.clone(), catalog);
     let program = entry.program();
     let size = entry.transfer_size();
     let expired = !session.is_actionable(blankres_session::now_secs());
@@ -131,7 +133,7 @@ fn crash_page(
     icon.set_pixel_size(48);
     headline.append(&icon);
 
-    let title = gtk::Label::new(Some(&format!("{program} closed unexpectedly")));
+    let title = gtk::Label::new(Some(&catalog.closed_unexpectedly(&program)));
     title.add_css_class("title-2");
     title.set_wrap(true);
     title.set_justify(gtk::Justification::Center);
@@ -140,12 +142,9 @@ fn crash_page(
     // The size belongs in the headline, not in the details: it is what someone actually weighs
     // when deciding whether to send a snapshot of their own memory.
     let subtitle = gtk::Label::new(Some(&if expired {
-        "The server is no longer waiting for this report. You can only discard it.".to_owned()
+        catalog.expired().to_owned()
     } else {
-        format!(
-            "Sending this uploads {}, including a snapshot of the program's memory.",
-            human_size(size)
-        )
+        catalog.upload_warning(&human_size(size))
     }));
     subtitle.add_css_class("dim-label");
     subtitle.set_wrap(true);
@@ -158,8 +157,8 @@ fn crash_page(
 
     // Everything that would be transmitted, in full.
     let details = adw::PreferencesGroup::builder()
-        .title("What would be sent")
-        .description("Every field below is included in the upload.")
+        .title(catalog.what_would_be_sent())
+        .description(catalog.what_would_be_sent_detail())
         .build();
 
     for (label, value) in session.disclosure() {
@@ -182,18 +181,25 @@ fn crash_page(
     let progress = gtk::ProgressBar::builder()
         .visible(false)
         .show_text(true)
-        .text("Uploading…")
+        .text(catalog.uploading())
         .build();
 
-    let ignore = gtk::Button::with_label("Never for this problem");
-    let discard = gtk::Button::with_label("Don't send");
-    let send = gtk::Button::with_label("Send report");
-    send.add_css_class("suggested-action");
+    let ignore = gtk::Button::with_label(catalog.never_for_this_problem());
+    let send = gtk::Button::with_label(catalog.send_report());
+    let discard = gtk::Button::with_label(catalog.dont_send());
     send.set_sensitive(!expired);
 
+    // "Don't send" is the default, and sits rightmost where the default belongs. Uploading a
+    // snapshot of your own process memory should be a deliberate act, so the safe choice is the
+    // one that happens on Enter or a reflexive click, and the irreversible one is never the
+    // button that is already focused.
+    discard.add_css_class("suggested-action");
+    discard.set_receives_default(true);
+    window.set_default_widget(Some(&discard));
+
     buttons.append(&ignore);
-    buttons.append(&discard);
     buttons.append(&send);
+    buttons.append(&discard);
 
     let footer = gtk::Box::new(gtk::Orientation::Vertical, 6);
     footer.append(&progress);
@@ -203,6 +209,8 @@ fn crash_page(
     wire_actions(
         window, toasts, context, &entry, &send, &discard, &ignore, &progress,
     );
+
+    discard.grab_focus();
 
     let view = adw::ToolbarView::new();
     view.set_content(Some(&page));
@@ -263,10 +271,11 @@ fn wire_actions(
         let store = context.store.clone();
         let entry = entry.clone();
         let toasts = toasts.clone();
+        let catalog = context.catalog;
         move |button| {
             ReportSession::new(&store, entry.clone()).discard();
             button.set_sensitive(false);
-            toasts.add_toast(adw::Toast::new("Report discarded."));
+            toasts.add_toast(adw::Toast::new(catalog.report_discarded()));
             disable_siblings(button);
         }
     });
@@ -278,11 +287,12 @@ fn wire_actions(
         let store = context.store.clone();
         let entry = entry.clone();
         let toasts = toasts.clone();
+        let catalog = context.catalog;
         move |button| {
             let session = ReportSession::new(&store, entry.clone());
             let message = match session.decline_forever() {
-                Ok(()) => "This problem will not be raised again.",
-                Err(_) => "Could not record the decision.",
+                Ok(()) => catalog.problem_ignored(),
+                Err(_) => catalog.could_not_record_decision(),
             };
             toasts.add_toast(adw::Toast::new(message));
             disable_siblings(button);
@@ -296,6 +306,7 @@ fn wire_actions(
         let progress = progress.clone();
         let endpoint = context.endpoint.clone();
         let window = window.clone();
+        let catalog = context.catalog;
         move |button| {
             button.set_sensitive(false);
             progress.set_visible(true);
@@ -351,6 +362,7 @@ fn wire_actions(
                 let toasts = toasts.clone();
                 let button = button.clone();
                 let window = window.clone();
+                let catalog = catalog;
                 async move {
                     let result = receiver.recv().await;
                     pulse.remove();
@@ -358,7 +370,7 @@ fn wire_actions(
 
                     match result {
                         Ok(UploadResult::Sent { id }) => {
-                            toasts.add_toast(adw::Toast::new(&format!("Report sent. Id {id}")));
+                            toasts.add_toast(adw::Toast::new(&catalog.report_sent(&id)));
                             disable_siblings(&button);
                             let _ = window;
                         }
@@ -368,7 +380,7 @@ fn wire_actions(
                             button.set_sensitive(true);
                         }
                         Err(_) => {
-                            toasts.add_toast(adw::Toast::new("Upload ended unexpectedly."));
+                            toasts.add_toast(adw::Toast::new(catalog.upload_ended_unexpectedly()));
                             button.set_sensitive(true);
                         }
                     }
@@ -400,7 +412,7 @@ fn present_settings(parent: &adw::ApplicationWindow, context: &AppContext) {
     let window = adw::PreferencesWindow::builder()
         .transient_for(parent)
         .modal(true)
-        .title("Crash Reporting")
+        .title(context.catalog.app_title())
         .default_width(560)
         .default_height(420)
         .build();
@@ -408,24 +420,19 @@ fn present_settings(parent: &adw::ApplicationWindow, context: &AppContext) {
     let page = adw::PreferencesPage::new();
 
     let group = adw::PreferencesGroup::builder()
-        .title("Automatic crash statistics")
-        .description(
-            "When a program crashes, a short report — the program, the package version and a \
-             fingerprint of where it crashed — is sent automatically. It contains no memory \
-             contents, no command line and no environment.",
-        )
+        .title(context.catalog.automatic_statistics())
+        .description(context.catalog.automatic_statistics_detail())
         .build();
 
     let writable = is_writable(&context.config_path);
     let toggle = adw::SwitchRow::builder()
-        .title("Send crash statistics")
+        .title(context.catalog.send_statistics())
         .subtitle(if writable {
             context.config_path.display().to_string()
         } else {
-            format!(
-                "Set by an administrator in {}",
-                context.config_path.display()
-            )
+            context
+                .catalog
+                .set_by_administrator(&context.config_path.display().to_string())
         })
         .active(context.telemetry_enabled)
         .sensitive(writable)
@@ -443,11 +450,8 @@ fn present_settings(parent: &adw::ApplicationWindow, context: &AppContext) {
     page.add(&group);
 
     let explain = adw::PreferencesGroup::builder()
-        .title("Memory snapshots")
-        .description(
-            "A full memory snapshot is only ever uploaded when the crash server asks for one and \
-             you agree to it in this window. It is never sent automatically.",
-        )
+        .title(context.catalog.memory_snapshots())
+        .description(context.catalog.memory_snapshots_detail())
         .build();
     page.add(&explain);
 

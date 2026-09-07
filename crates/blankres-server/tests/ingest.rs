@@ -149,7 +149,10 @@ async fn once_the_quota_is_met_further_machines_are_told_not_to_send() {
     let (client, storage) = server!(1);
     let event = event("quota", Some(4096));
 
-    let first = client.send_events(std::slice::from_ref(&event)).await.expect("sent");
+    let first = client
+        .send_events(std::slice::from_ref(&event))
+        .await
+        .expect("sent");
     assert!(first[0].need_payload, "first of a signature is wanted");
 
     // Redeem it, which is what actually increments the stored-payload count.
@@ -186,7 +189,10 @@ async fn a_crash_with_no_core_is_never_asked_for_one() {
 async fn an_upload_token_cannot_be_used_twice() {
     let (client, storage) = server!(5);
     let event = event("replay", Some(1024));
-    let directives = client.send_events(std::slice::from_ref(&event)).await.expect("sent");
+    let directives = client
+        .send_events(std::slice::from_ref(&event))
+        .await
+        .expect("sent");
 
     let core = storage.path().join("core.zst");
     std::fs::write(&core, vec![3u8; 1024]).expect("write core");
@@ -227,7 +233,10 @@ async fn the_stored_blob_is_named_by_the_digest_of_what_was_sent() {
 
     let (client, storage) = server!(5);
     let event = event("digest", Some(2048));
-    let directives = client.send_events(std::slice::from_ref(&event)).await.expect("sent");
+    let directives = client
+        .send_events(std::slice::from_ref(&event))
+        .await
+        .expect("sent");
 
     let bytes: Vec<u8> = (0..2048u32).map(|i| (i % 251) as u8).collect();
     let core = storage.path().join("core.zst");
@@ -256,7 +265,10 @@ async fn the_stored_blob_is_named_by_the_digest_of_what_was_sent() {
 async fn a_payload_over_the_directives_limit_is_rejected_before_it_is_sent() {
     let (client, storage) = server!(5);
     let event = event("toolarge", Some(1024));
-    let directives = client.send_events(std::slice::from_ref(&event)).await.expect("sent");
+    let directives = client
+        .send_events(std::slice::from_ref(&event))
+        .await
+        .expect("sent");
 
     // A core far larger than the one the directive was sized for.
     let core = storage.path().join("core.zst");
@@ -277,8 +289,14 @@ async fn signature_counters_track_events_and_payloads_separately() {
     let (client, storage) = server!(5);
     let event = event("counters", Some(512));
 
-    let first = client.send_events(std::slice::from_ref(&event)).await.expect("sent");
-    client.send_events(std::slice::from_ref(&event)).await.expect("sent");
+    let first = client
+        .send_events(std::slice::from_ref(&event))
+        .await
+        .expect("sent");
+    client
+        .send_events(std::slice::from_ref(&event))
+        .await
+        .expect("sent");
 
     let core = storage.path().join("core.zst");
     std::fs::write(&core, vec![9u8; 512]).expect("write core");

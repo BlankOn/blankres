@@ -14,6 +14,7 @@ path = "src/main.rs"
 blankres-report.workspace = true
 blankres-client.workspace = true
 blankres-session.workspace = true
+blankres-i18n.workspace = true
 blankres-daemon.workspace = true
 serde_json.workspace = true
 tokio.workspace = true

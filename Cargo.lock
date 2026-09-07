@@ -195,6 +195,7 @@ version = "0.1.0"
 dependencies = [
  "blankres-client",
  "blankres-daemon",
+ "blankres-i18n",
  "blankres-report",
  "blankres-session",
  "clap",
@@ -256,6 +257,7 @@ dependencies = [
  "async-channel",
  "blankres-client",
  "blankres-daemon",
+ "blankres-i18n",
  "blankres-report",
  "blankres-session",
  "gtk4",
@@ -282,6 +284,10 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
 ]
+
+[[package]]
+name = "blankres-i18n"
+version = "0.1.0"
 
 [[package]]
 name = "blankres-report"
@@ -327,6 +333,7 @@ name = "blankres-session"
 version = "0.1.0"
 dependencies = [
  "blankres-client",
+ "blankres-i18n",
  "blankres-report",
  "serde",
  "serde_json",

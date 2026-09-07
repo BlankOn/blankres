@@ -4,6 +4,7 @@ use std::path::PathBuf;
 
 use blankres_client::Endpoint;
 use blankres_daemon::config::{ClientConfig, DEFAULT_CONFIG};
+use blankres_i18n::Catalog;
 use blankres_session::{current_uid, PendingStore};
 
 /// Everything the window needs, resolved once at startup.
@@ -13,6 +14,8 @@ pub struct AppContext {
     pub endpoint: Endpoint,
     pub config_path: PathBuf,
     pub telemetry_enabled: bool,
+    /// Resolved once, so every string in one window comes from the same language.
+    pub catalog: Catalog,
 }
 
 impl AppContext {
@@ -30,6 +33,7 @@ impl AppContext {
             endpoint: config.endpoint.clone(),
             config_path,
             telemetry_enabled: config.telemetry_enabled,
+            catalog: Catalog::detect(),
         }
     }
 }

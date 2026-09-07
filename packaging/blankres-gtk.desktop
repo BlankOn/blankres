@@ -1,6 +1,6 @@
 [Desktop Entry]
 Type=Application
-Name=Crash Reporting
+Name=BlanKres Crash Reporting
 Comment=Review crash reports before they are sent
 Exec=/usr/bin/blankres-gtk
 Icon=dialog-warning

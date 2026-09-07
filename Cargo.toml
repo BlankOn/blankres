@@ -2,6 +2,7 @@
 resolver = "2"
 members = [
     "crates/blankres-report",
+    "crates/blankres-i18n",
     "crates/blankres-collect",
     "crates/blankres-client",
     "crates/blankres-server",
@@ -29,6 +30,7 @@ base64 = "0.22"
 flate2 = "1"
 md-5 = "0.10"
 blankres-report = { path = "crates/blankres-report" }
+blankres-i18n = { path = "crates/blankres-i18n" }
 blankres-collect = { path = "crates/blankres-collect" }
 blankres-client = { path = "crates/blankres-client" }
 blankres-server = { path = "crates/blankres-server" }

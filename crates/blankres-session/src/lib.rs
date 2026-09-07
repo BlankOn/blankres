@@ -11,6 +11,7 @@ pub use store::{
 };
 
 use blankres_client::{Client, ClientError, UploadReceipt};
+use blankres_i18n::Catalog;
 use blankres_report::report::Attachment;
 
 /// What the user decided about one crash.
@@ -38,11 +39,26 @@ pub enum SessionError {
 pub struct ReportSession<'a> {
     store: &'a PendingStore,
     entry: PendingEntry,
+    catalog: Catalog,
 }
 
 impl<'a> ReportSession<'a> {
+    /// A session using the language the environment asks for.
     pub fn new(store: &'a PendingStore, entry: PendingEntry) -> Self {
-        Self { store, entry }
+        Self::with_catalog(store, entry, Catalog::detect())
+    }
+
+    /// A session in an explicit language, so tests are not at the mercy of the ambient locale.
+    pub fn with_catalog(store: &'a PendingStore, entry: PendingEntry, catalog: Catalog) -> Self {
+        Self {
+            store,
+            entry,
+            catalog,
+        }
+    }
+
+    pub fn catalog(&self) -> &Catalog {
+        &self.catalog
     }
 
     pub fn entry(&self) -> &PendingEntry {
@@ -55,33 +71,37 @@ impl<'a> ReportSession<'a> {
     /// a memory snapshot of their own process, and they can only meaningfully agree to that if
     /// they can see what it is attached to.
     pub fn disclosure(&self) -> Vec<(String, String)> {
+        let t = &self.catalog;
         let report = &self.entry.pending.report;
         let event = &report.event;
         let mut rows = vec![
-            ("Program".to_owned(), event.executable.clone()),
+            (t.label_program().to_owned(), event.executable.clone()),
             (
-                "Signal".to_owned(),
+                t.label_signal().to_owned(),
                 event
                     .signal_name
                     .clone()
                     .or_else(|| event.signal.map(|s| s.to_string()))
-                    .unwrap_or_else(|| "unknown".to_owned()),
+                    .unwrap_or_else(|| t.unknown().to_owned()),
             ),
             (
-                "Package".to_owned(),
+                t.label_package().to_owned(),
                 match (&event.package.name, &event.package.version) {
                     (Some(name), Some(version)) => format!("{name} {version}"),
                     (Some(name), None) => name.clone(),
-                    _ => "not from a package".to_owned(),
+                    _ => t.not_from_a_package().to_owned(),
                 },
             ),
             (
-                "Operating system".to_owned(),
+                t.label_operating_system().to_owned(),
                 format!("{} {}", event.system.distro, event.system.distro_version),
             ),
-            ("Kernel".to_owned(), event.system.kernel_version.clone()),
             (
-                "Crash signature".to_owned(),
+                t.label_kernel().to_owned(),
+                event.system.kernel_version.clone(),
+            ),
+            (
+                t.label_signature().to_owned(),
                 format!(
                     "{} ({:?})",
                     &event.signature.hash[..16.min(event.signature.hash.len())],
@@ -91,7 +111,10 @@ impl<'a> ReportSession<'a> {
         ];
 
         if !report.command_line.is_empty() {
-            rows.push(("Command line".to_owned(), report.command_line.join(" ")));
+            rows.push((
+                t.label_command_line().to_owned(),
+                report.command_line.join(" "),
+            ));
         }
 
         if !report.stack_trace.is_empty() {
@@ -107,44 +130,36 @@ impl<'a> ReportSession<'a> {
                         .unwrap_or_else(|| "??".to_owned())
                 })
                 .collect();
-            rows.push(("Stack trace".to_owned(), frames.join("\n")));
+            rows.push((t.label_stack_trace().to_owned(), frames.join("\n")));
         }
 
         for (name, value) in &report.environment {
-            rows.push((format!("Environment: {name}"), value.clone()));
+            rows.push((t.label_environment_named(name), value.clone()));
         }
         if report.environment_withheld > 0 {
             rows.push((
-                "Environment".to_owned(),
-                format!(
-                    "{} more variables withheld to avoid sending credentials",
-                    report.environment_withheld
-                ),
+                t.label_environment().to_owned(),
+                t.variables_withheld(report.environment_withheld),
             ));
         }
 
         for modified in &report.modified_files {
             rows.push((
-                "Modified file".to_owned(),
-                format!("{} (from {})", modified.path.display(), modified.package),
+                t.label_modified_file().to_owned(),
+                t.from_package(&modified.path.display().to_string(), &modified.package),
             ));
         }
 
         for attachment in &report.attachments {
             let description = match attachment {
-                Attachment::Inline { content, .. } => format!("{} bytes of text", content.len()),
-                Attachment::File { size, .. } => {
-                    format!("{} — a snapshot of the program's memory", human_size(*size))
-                }
+                Attachment::Inline { content, .. } => t.bytes_of_text(content.len()),
+                Attachment::File { size, .. } => t.memory_snapshot_of_size(&human_size(*size)),
             };
-            rows.push((format!("Attachment: {}", attachment.name()), description));
+            rows.push((t.label_attachment(attachment.name()), description));
         }
 
         for skipped in &report.skipped {
-            rows.push((
-                format!("Not collected: {}", skipped.name),
-                skipped.reason.clone(),
-            ));
+            rows.push((t.label_not_collected(&skipped.name), skipped.reason.clone()));
         }
 
         rows
@@ -154,9 +169,9 @@ impl<'a> ReportSession<'a> {
     pub fn transfer_summary(&self) -> String {
         let size = self.entry.transfer_size();
         if size == 0 {
-            return "No attachments".to_owned();
+            return self.catalog.no_attachments().to_owned();
         }
-        format!("Includes {}", human_size(size))
+        self.catalog.includes_size(&human_size(size))
     }
 
     /// Whether the server is still waiting for this payload.
