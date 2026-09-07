@@ -1,1 +1,18 @@
 /target
+
+# Debian build output. dpkg-buildpackage writes all of this into the source tree, and committing
+# it breaks a source-only build elsewhere: dpkg-genchanges reads debian/files and fails trying to
+# stat binaries that only ever existed on the machine that built them.
+debian/files
+debian/cargo/
+debian/blankres/
+debian/.debhelper/
+debian/debhelper-build-stamp
+debian/*.debhelper
+debian/*.debhelper.log
+debian/*.substvars
+*.deb
+*.buildinfo
+*.changes
+*.dsc
+*.tar.xz
