@@ -1,0 +1,9 @@
+target/
+debian/
+.git/
+.github/
+*.deb
+*.md
+docs/
+packaging/
+scripts/

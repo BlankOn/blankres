@@ -79,6 +79,32 @@ blankres send firefox     # upload it
 blankres ignore firefox   # never ask about this problem again
 ```
 
+## Running the server with Docker
+
+The ingest server and its database, locally:
+
+```bash
+make up          # docker compose up -d --build
+curl -s localhost:8080/healthz
+make logs        # follow the server
+make down        # stop; add KEEP=0 to delete the stored crash data too
+```
+
+`make build-docker` builds just the image (`blankres-ingest:0.1.0`). It is the server only: the
+client reads the host's journal, dpkg database and saved core dumps, so it runs on the machine
+being reported on and ships as a `.deb` instead.
+
+The compose file is a development deployment. The token is a placeholder and the server speaks
+plain HTTP, which belongs behind a reverse proxy terminating TLS. Override anything through the
+environment:
+
+```bash
+BLANKRES_TOKEN=... BLANKRES_PORT=9000 BLANKRES_PAYLOADS_PER_SIGNATURE=1 make up
+```
+
+Point a client at it by setting `BLANKRES_SERVER_URL=http://localhost:8080` and `BLANKRES_TOKEN`,
+or by editing `/etc/blankres/client.json`.
+
 ## Testing
 
 ```bash
