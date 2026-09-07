@@ -131,14 +131,19 @@ impl Config {
             return Err(ConfigError::MissingDatabaseUrl);
         }
 
-        // Refuse to start rather than run a server that can never accept a report. Without this
-        // a missing token produces a service that answers 401 to every client forever, looking
-        // for all the world like a client-side problem.
-        if config.token_hashes.is_empty() {
-            return Err(ConfigError::NoTokens);
-        }
-
         Ok(config)
+    }
+}
+
+impl Config {
+    /// True when no tokens are configured, in which case reports are accepted from anyone.
+    ///
+    /// This is a real deployment model, not a mistake: it is what Ubuntu's own automatic crash
+    /// reporting does, where the endpoint is open and abuse is handled by rate limiting rather
+    /// than by a credential. It is a deliberate choice either way, so the server says which mode
+    /// it is in on every start.
+    pub fn is_open(&self) -> bool {
+        self.token_hashes.is_empty()
     }
 }
 
@@ -168,10 +173,4 @@ pub enum ConfigError {
         "no database url: set `database_url` in the config or DATABASE_URL in the environment"
     )]
     MissingDatabaseUrl,
-    #[error(
-        "no accepted tokens: set BLANKRES_TOKEN in the environment, or `token_hashes` in the \
-         config file (generate one with `blankres-ingest hash-token <token>`). Without a token \
-         the server would reject every report it is sent."
-    )]
-    NoTokens,
 }

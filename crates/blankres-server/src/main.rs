@@ -63,15 +63,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     let bind = config.bind.clone();
     let quota = config.payloads_per_signature;
+    let open = config.is_open();
 
     // Migrations run as part of `build`, at startup, before the listener is opened: the server
     // never serves traffic against a schema it has not brought up to date.
     let app = blankres_server::build(config).await?;
 
     let listener = tokio::net::TcpListener::bind(&bind).await?;
+    if open {
+        // Deliberately a warning, and deliberately explicit about what it means. An open crash
+        // endpoint accepts core dumps, which are copies of other people's process memory, from
+        // anyone who can reach it.
+        tracing::warn!(
+            "no tokens configured: this endpoint accepts crash reports from anyone who can reach \
+             it. Set BLANKRES_TOKEN to require one, or rate limit it at the proxy."
+        );
+    }
+
     tracing::info!(
         address = %listener.local_addr()?,
         payloads_per_signature = quota,
+        authentication = if open { "open" } else { "token" },
         "blankres ingest listening"
     );
 

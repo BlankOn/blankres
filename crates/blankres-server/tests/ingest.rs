@@ -14,6 +14,19 @@ use blankres_server::Config;
 
 const TOKEN: &str = "test-fleet-token";
 
+/// Addresses of servers started by this test binary, so a test can point a differently
+/// configured client at the one it just started.
+static ADDRESSES: std::sync::Mutex<Vec<String>> = std::sync::Mutex::new(Vec::new());
+
+fn last_address() -> String {
+    ADDRESSES
+        .lock()
+        .unwrap()
+        .last()
+        .cloned()
+        .expect("a server was started")
+}
+
 fn database_url() -> Option<String> {
     std::env::var("BLANKRES_TEST_DATABASE_URL")
         .or_else(|_| std::env::var("DATABASE_URL"))
@@ -22,6 +35,15 @@ fn database_url() -> Option<String> {
 
 /// Start a server on an ephemeral port with its own storage root.
 async fn start(quota: i64) -> Option<(Client, tempfile::TempDir)> {
+    start_with_tokens(quota, vec![hash_token(TOKEN)]).await
+}
+
+/// Start a server with a given set of accepted token hashes. An empty set means the endpoint is
+/// open, which is a supported deployment, not a misconfiguration.
+async fn start_with_tokens(
+    quota: i64,
+    token_hashes: Vec<String>,
+) -> Option<(Client, tempfile::TempDir)> {
     let database_url = database_url()?;
     let storage = tempfile::tempdir().expect("temp dir");
 
@@ -29,7 +51,7 @@ async fn start(quota: i64) -> Option<(Client, tempfile::TempDir)> {
         bind: "127.0.0.1:0".to_owned(),
         database_url,
         storage_root: storage.path().to_path_buf(),
-        token_hashes: vec![hash_token(TOKEN)],
+        token_hashes,
         payloads_per_signature: quota,
         max_payload_bytes: 16 * 1024 * 1024,
         upload_token_ttl_secs: 60,
@@ -46,6 +68,7 @@ async fn start(quota: i64) -> Option<(Client, tempfile::TempDir)> {
     });
 
     let client = Client::new(Endpoint::new(format!("http://{address}"), TOKEN)).expect("client");
+    ADDRESSES.lock().unwrap().push(address.to_string());
     Some((client, storage))
 }
 
@@ -331,4 +354,60 @@ async fn a_batch_gets_one_directive_per_event_in_order() {
         "the coreless event in the middle"
     );
     assert!(directives[2].need_payload);
+}
+
+#[tokio::test]
+async fn an_open_server_accepts_reports_with_no_token_at_all() {
+    // Ubuntu's own automatic crash reporting works this way: an open endpoint, with abuse handled
+    // by rate limiting rather than a credential.
+    let Some((client, _storage)) = start_with_tokens(5, Vec::new()).await else {
+        eprintln!("skipping: set BLANKRES_TEST_DATABASE_URL to run ingest tests");
+        return;
+    };
+
+    let directives = client
+        .send_events(&[event("open", Some(4096))])
+        .await
+        .expect("an open endpoint accepts an unauthenticated report");
+    assert_eq!(directives.len(), 1);
+}
+
+#[tokio::test]
+async fn an_open_server_does_not_care_what_token_is_sent() {
+    // The client always sends whatever token it was configured with. On an open server that must
+    // not be a reason to reject it, or every already-configured machine would break on the day
+    // the operator removes the token.
+    let Some((_client, _storage)) = start_with_tokens(5, Vec::new()).await else {
+        return;
+    };
+    let wrong = Client::new(Endpoint::new(
+        format!("http://{}", last_address()),
+        "a-token-the-server-has-never-heard-of",
+    ))
+    .expect("client");
+
+    wrong
+        .send_events(&[event("opentok", None)])
+        .await
+        .expect("an open endpoint ignores the token entirely");
+}
+
+#[tokio::test]
+async fn a_server_with_a_token_still_rejects_the_wrong_one() {
+    // The counterpart to open mode: configuring a token must actually enforce it.
+    let Some((_client, _storage)) = start_with_tokens(5, vec![hash_token("the-real-one")]).await
+    else {
+        return;
+    };
+    let wrong = Client::new(Endpoint::new(
+        format!("http://{}", last_address()),
+        "not-it",
+    ))
+    .expect("client");
+
+    let err = wrong
+        .send_events(&[event("wrongtok", None)])
+        .await
+        .expect_err("a configured token must be enforced");
+    assert!(format!("{err}").contains("401"), "{err}");
 }

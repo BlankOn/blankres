@@ -9,6 +9,7 @@ pub mod config;
 pub mod db;
 pub mod routes;
 pub mod storage;
+pub mod web;
 
 pub use config::Config;
 pub use routes::{router, AppState, SharedState};

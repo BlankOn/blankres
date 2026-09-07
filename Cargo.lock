@@ -191,7 +191,7 @@ dependencies = [
 
 [[package]]
 name = "blankres-cli"
-version = "0.2.2"
+version = "0.2.3"
 dependencies = [
  "blankres-client",
  "blankres-daemon",
@@ -205,7 +205,7 @@ dependencies = [
 
 [[package]]
 name = "blankres-client"
-version = "0.2.2"
+version = "0.2.3"
 dependencies = [
  "blankres-report",
  "reqwest",
@@ -219,7 +219,7 @@ dependencies = [
 
 [[package]]
 name = "blankres-collect"
-version = "0.2.2"
+version = "0.2.3"
 dependencies = [
  "blankres-report",
  "hex",
@@ -232,7 +232,7 @@ dependencies = [
 
 [[package]]
 name = "blankres-daemon"
-version = "0.2.2"
+version = "0.2.3"
 dependencies = [
  "axum",
  "blankres-client",
@@ -252,7 +252,7 @@ dependencies = [
 
 [[package]]
 name = "blankres-gtk"
-version = "0.2.2"
+version = "0.2.3"
 dependencies = [
  "async-channel",
  "blankres-client",
@@ -270,7 +270,7 @@ dependencies = [
 
 [[package]]
 name = "blankres-hooks"
-version = "0.2.2"
+version = "0.2.3"
 dependencies = [
  "blankres-client",
  "blankres-collect",
@@ -287,11 +287,11 @@ dependencies = [
 
 [[package]]
 name = "blankres-i18n"
-version = "0.2.2"
+version = "0.2.3"
 
 [[package]]
 name = "blankres-report"
-version = "0.2.2"
+version = "0.2.3"
 dependencies = [
  "base64",
  "flate2",
@@ -304,7 +304,7 @@ dependencies = [
 
 [[package]]
 name = "blankres-server"
-version = "0.2.2"
+version = "0.2.3"
 dependencies = [
  "axum",
  "blankres-client",
@@ -330,7 +330,7 @@ dependencies = [
 
 [[package]]
 name = "blankres-session"
-version = "0.2.2"
+version = "0.2.3"
 dependencies = [
  "blankres-client",
  "blankres-i18n",

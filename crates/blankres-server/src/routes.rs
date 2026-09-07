@@ -28,6 +28,11 @@ pub type SharedState = Arc<AppState>;
 
 pub fn router(state: SharedState) -> Router {
     Router::new()
+        // The dashboard is deliberately unauthenticated: a browser cannot present a bearer
+        // token, and a status page nobody can open is not a status page. It shows crash
+        // metadata only, never a payload.
+        .route("/", get(crate::web::dashboard))
+        .route("/fragments/reports", get(crate::web::reports_fragment))
         .route("/healthz", get(healthz))
         .route("/v1/events", post(post_events))
         .route("/v1/reports", post(post_report))
@@ -95,7 +100,14 @@ async fn healthz(State(state): State<SharedState>) -> impl IntoResponse {
 }
 
 /// Check the fleet token. Compared by hash so the configured value is not itself a credential.
+///
+/// With no tokens configured the endpoint is open and every request is accepted, with or without
+/// an `Authorization` header. See [`Config::is_open`]; the server announces the mode at startup.
 fn authorize(headers: &HeaderMap, config: &Config) -> Result<(), ApiError> {
+    if config.is_open() {
+        return Ok(());
+    }
+
     let presented = headers
         .get(axum::http::header::AUTHORIZATION)
         .and_then(|value| value.to_str().ok())
