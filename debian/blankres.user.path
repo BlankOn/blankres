@@ -2,8 +2,12 @@
 Description=Watch for crash reports awaiting this user's decision
 
 [Path]
-# Only reports the server actually asked for are ever written here, so this triggers rarely.
+# Two conditions, because one is not enough. PathExistsGlob catches reports that are already
+# waiting when the session starts, but it only fires on the transition into existence: with a
+# report already sitting there it never fires again. PathChanged covers the directory itself, so a
+# crash that arrives while another is pending still opens the window.
 PathExistsGlob=/var/crash/%U/*.report
+PathChanged=/var/crash/%U
 
 [Install]
 WantedBy=default.target

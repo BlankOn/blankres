@@ -1,3 +1,17 @@
+blankres (0.2.1) unstable; urgency=medium
+
+  * Treat closing the crash window as "Don't send". Dismissing a consent
+    dialog is not consent, and leaving the report behind also stopped the
+    window from ever opening again, because the path unit that starts it only
+    fires when the crash directory goes from empty to non-empty.
+  * Include the crash signature in the report filename. Two different bugs in
+    one program shared a filename, so the second crash silently overwrote the
+    first and took its upload token with it.
+  * Also watch the crash directory for changes, so a crash that arrives while
+    another report is still pending opens the window.
+
+ -- Herpiko Dwi Aguno <herpiko@gmail.com>  Mon, 07 Sep 2026 21:49:27 +0700
+
 blankres (0.2.0) unstable; urgency=medium
 
   * Show a crash to the user even when the crash server cannot be reached.

@@ -59,6 +59,24 @@ pub fn build_window(app: &adw::Application, context: AppContext) -> adw::Applica
 
     toasts.set_child(Some(&layout));
     window.set_content(Some(&toasts));
+
+    // Closing the window means the same thing as "Don't send". A consent dialog that is dismissed
+    // has not consented, and the alternative is worse than it sounds: reports left on disk keep
+    // the crash directory non-empty, and the systemd path unit that opens this window only fires
+    // when that directory goes from empty to non-empty. Leaving them would quietly stop every
+    // future crash from being shown.
+    window.connect_close_request({
+        let store = context.store.clone();
+        move |_| {
+            // Read the directory again rather than trusting a list captured at startup: anything
+            // already sent or discarded is gone, and must not be "discarded" a second time.
+            for entry in store.list() {
+                ReportSession::new(&store, entry).discard();
+            }
+            glib::Propagation::Proceed
+        }
+    });
+
     window
 }
 

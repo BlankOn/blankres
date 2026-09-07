@@ -226,7 +226,7 @@ fn sizes_are_rendered_the_way_a_person_would_say_them() {
 }
 
 #[test]
-fn a_pending_report_file_is_named_for_its_program_and_user() {
+fn a_pending_report_file_is_named_for_its_program_user_and_signature() {
     let (_dir, store, _core) = fixture(3600);
     let entry = store.list().remove(0);
     let name = entry
@@ -235,7 +235,7 @@ fn a_pending_report_file_is_named_for_its_program_and_user() {
         .unwrap()
         .to_string_lossy()
         .into_owned();
-    assert_eq!(name, "usr_lib_firefox_firefox.1000.report");
+    assert_eq!(name, "usr_lib_firefox_firefox.1000.aaaaaaaaaaaa.report");
 }
 
 /// A report written while the server was unreachable: no upload token yet.
@@ -296,5 +296,39 @@ async fn sending_an_unconfirmed_report_needs_the_server() {
     );
     // Nothing was destroyed, so the user can try again later.
     assert!(core.exists());
+    assert_eq!(store.list().len(), 1);
+}
+
+#[test]
+fn two_bugs_in_one_program_do_not_overwrite_each_other() {
+    // Without the signature in the filename the second crash silently replaced the first and took
+    // its upload token with it, so one of the two could never be sent.
+    let dir = tempfile::tempdir().expect("temp dir");
+    let crash_dir = dir.path().join("crash");
+    let core = dir.path().join("core.zst");
+    std::fs::write(&core, vec![0u8; 4096]).expect("write core");
+
+    let first = pending(&core, 3600);
+    let mut second = pending(&core, 3600);
+    second.report.event.signature.hash = "b".repeat(64);
+
+    write_pending(&crash_dir, &first).expect("write first");
+    write_pending(&crash_dir, &second).expect("write second");
+
+    let store = PendingStore::new(&crash_dir, UID);
+    assert_eq!(store.list().len(), 2, "both crashes must survive");
+}
+
+#[test]
+fn the_same_bug_crashing_twice_is_still_one_thing_to_decide() {
+    let dir = tempfile::tempdir().expect("temp dir");
+    let crash_dir = dir.path().join("crash");
+    let core = dir.path().join("core.zst");
+    std::fs::write(&core, vec![0u8; 4096]).expect("write core");
+
+    write_pending(&crash_dir, &pending(&core, 3600)).expect("write");
+    write_pending(&crash_dir, &pending(&core, 3600)).expect("write again");
+
+    let store = PendingStore::new(&crash_dir, UID);
     assert_eq!(store.list().len(), 1);
 }

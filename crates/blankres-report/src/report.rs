@@ -141,8 +141,11 @@ impl PendingUpload {
         self.awaiting_directive || self.directive.is_actionable(now)
     }
 
-    /// Filename to use under `/var/crash`, keyed by executable and uid so one user's crashes are
-    /// distinguishable from another's and neither can clobber the other.
+    /// Filename to use under `/var/crash`.
+    ///
+    /// Keyed by executable, uid *and* signature. The signature matters: without it two different
+    /// bugs in the same program share a filename, so the second crash silently overwrites the
+    /// first and takes its upload token with it.
     pub fn file_name(&self) -> String {
         let exe = self
             .report
@@ -151,6 +154,8 @@ impl PendingUpload {
             .trim_start_matches('/')
             .replace('/', "_");
         let uid = self.report.uid.unwrap_or(0);
-        format!("{exe}.{uid}.report")
+        let signature = &self.report.event.signature.hash;
+        let short = &signature[..12.min(signature.len())];
+        format!("{exe}.{uid}.{short}.report")
     }
 }
