@@ -57,6 +57,24 @@ impl<F: Filesystem, P: PackageBackend> Stage2Collector<F, P> {
         record: &CoredumpRecord,
         budget: &mut Budget,
     ) -> Report {
+        let mut report = self.collect_without_verification(event, directive_id, record, budget);
+        self.verify_into(&mut report, record, budget);
+        report
+    }
+
+    /// Everything that comes straight from the journal record, with no disk access beyond a stat
+    /// of the core.
+    ///
+    /// This is the half that can run while the stage-1 request is still in flight: it costs
+    /// microseconds, where hashing a process's mapped libraries costs real I/O and is therefore
+    /// deferred until we know the payload is actually wanted.
+    pub fn collect_without_verification(
+        &self,
+        event: CrashEvent,
+        directive_id: impl Into<String>,
+        record: &CoredumpRecord,
+        budget: &mut Budget,
+    ) -> Report {
         let mut skipped = Vec::new();
 
         let command_line = record
@@ -70,28 +88,6 @@ impl<F: Filesystem, P: PackageBackend> Stage2Collector<F, P> {
             .unwrap_or_else(|| (BTreeMap::new(), 0));
 
         let stack_trace = parse_journal_stack_trace(&record.message);
-
-        let modified_files = match budget.check_time() {
-            Ok(()) => {
-                let mut candidates = record.mapped_files();
-                // The executable first: it is the file most likely to matter and the one we least
-                // want dropped by the cap.
-                if let Some(exe) = record.executable() {
-                    let exe = PathBuf::from(exe);
-                    candidates.retain(|p| p != &exe);
-                    candidates.insert(0, exe);
-                }
-                candidates.truncate(MAX_VERIFIED_FILES);
-                self.packages.verify(&candidates)
-            }
-            Err(reason) => {
-                skipped.push(SkippedCollector {
-                    name: "package-verification".to_owned(),
-                    reason: reason.to_string(),
-                });
-                Vec::new()
-            }
-        };
 
         let mut attachments = Vec::new();
 
@@ -137,9 +133,35 @@ impl<F: Filesystem, P: PackageBackend> Stage2Collector<F, P> {
             environment_withheld,
             uid: record.uid(),
             stack_trace,
-            modified_files,
+            modified_files: Vec::new(),
             attachments,
             skipped,
+        }
+    }
+
+    /// Hash the executable and the libraries mapped at crash time, recording any that no longer
+    /// match what dpkg installed.
+    ///
+    /// Deliberately separate and deliberately last: this is the only part of stage 2 that reads
+    /// significant amounts of data, so it runs once the payload is known to be worth keeping.
+    pub fn verify_into(&self, report: &mut Report, record: &CoredumpRecord, budget: &mut Budget) {
+        match budget.check_time() {
+            Ok(()) => {
+                let mut candidates = record.mapped_files();
+                // The executable first: it is the file most likely to matter and the one we least
+                // want dropped by the cap.
+                if let Some(exe) = record.executable() {
+                    let exe = PathBuf::from(exe);
+                    candidates.retain(|p| p != &exe);
+                    candidates.insert(0, exe);
+                }
+                candidates.truncate(MAX_VERIFIED_FILES);
+                report.modified_files = self.packages.verify(&candidates);
+            }
+            Err(reason) => report.skipped.push(SkippedCollector {
+                name: "package-verification".to_owned(),
+                reason: reason.to_string(),
+            }),
         }
     }
 

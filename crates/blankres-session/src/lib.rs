@@ -29,6 +29,8 @@ pub enum Decision {
 pub enum SessionError {
     #[error("this report's upload window has expired; the server is no longer waiting for it")]
     Expired,
+    #[error("the server already has enough reports for this problem; nothing was sent")]
+    NotWanted,
     #[error(transparent)]
     Upload(#[from] ClientError),
     #[error("io error: {0}")]
@@ -202,14 +204,39 @@ impl<'a> ReportSession<'a> {
     }
 
     /// Upload the payload. The only place the upload token is used.
+    ///
+    /// A report written while the server was unreachable has no token yet, so one is fetched
+    /// first. That is also the moment we discover whether the payload was ever wanted: if the
+    /// server has enough reports for this problem already, nothing is uploaded and the local
+    /// copy is cleaned up.
     pub async fn send(&self, client: &Client) -> Result<UploadReceipt, SessionError> {
         let now = now_secs();
         if !self.entry.pending.is_actionable(now) {
             return Err(SessionError::Expired);
         }
 
+        let directive = if self.entry.pending.awaiting_directive {
+            let event = &self.entry.pending.report.event;
+            let mut directives = client.send_events(std::slice::from_ref(event)).await?;
+            let directive = directives
+                .pop()
+                .filter(|directive| directive.is_actionable(now_secs()));
+
+            match directive {
+                Some(directive) => directive,
+                None => {
+                    // The user consented, and the answer is that it is not needed. Honour the
+                    // consent by not asking again rather than leaving the report sitting there.
+                    self.discard();
+                    return Err(SessionError::NotWanted);
+                }
+            }
+        } else {
+            self.entry.pending.directive.clone()
+        };
+
         let receipt = client
-            .upload_report(&self.entry.pending.report, &self.entry.pending.directive)
+            .upload_report(&self.entry.pending.report, &directive)
             .await?;
 
         // The core has done its job; keeping it after a successful upload is pure disk cost.

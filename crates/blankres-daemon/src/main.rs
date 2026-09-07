@@ -212,9 +212,11 @@ fn log_outcome(outcome: &Outcome) {
             path = %path.display(),
             "payload requested; awaiting user consent"
         ),
-        Outcome::Spooled { signature } => {
-            tracing::info!(signature = %&signature[..12], "spooled for a later attempt")
-        }
+        Outcome::SpooledAwaitingConsent { signature, path } => tracing::info!(
+            signature = %&signature[..12],
+            path = %path.display(),
+            "server unreachable; spooled and awaiting user consent"
+        ),
     }
 }
 

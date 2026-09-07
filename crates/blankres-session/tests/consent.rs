@@ -72,6 +72,7 @@ fn pending(core: &std::path::Path, expires_in: i64) -> PendingUpload {
             expires_at: Some((now as i64 + expires_in) as u64),
         },
         written_at: now,
+        awaiting_directive: false,
     }
 }
 
@@ -235,4 +236,65 @@ fn a_pending_report_file_is_named_for_its_program_and_user() {
         .to_string_lossy()
         .into_owned();
     assert_eq!(name, "usr_lib_firefox_firefox.1000.report");
+}
+
+/// A report written while the server was unreachable: no upload token yet.
+fn unconfirmed(core: &std::path::Path) -> PendingUpload {
+    let mut pending = pending(core, 3600);
+    pending.awaiting_directive = true;
+    pending.directive = blankres_report::event::PayloadDirective {
+        id: String::new(),
+        need_payload: true,
+        upload_token: None,
+        max_bytes: None,
+        expires_at: None,
+    };
+    pending
+}
+
+#[test]
+fn a_report_awaiting_a_directive_is_still_actionable() {
+    // It has no upload token and no deadline, and it must still be offerable to the user: the
+    // whole point is that a crash which could not be reported is not hidden from them.
+    let dir = tempfile::tempdir().expect("temp dir");
+    let crash_dir = dir.path().join("crash");
+    let core = dir.path().join("core.zst");
+    std::fs::write(&core, vec![0u8; 4096]).expect("write core");
+    write_pending(&crash_dir, &unconfirmed(&core)).expect("write pending");
+
+    let store = PendingStore::new(&crash_dir, UID);
+    let entry = store.list().remove(0);
+    let session = ReportSession::with_catalog(&store, entry, english());
+
+    assert!(session.is_actionable(now_secs()));
+}
+
+#[tokio::test]
+async fn sending_an_unconfirmed_report_needs_the_server() {
+    // Without a token there is nothing to upload against, so an unreachable server must surface
+    // as a failure the user can retry, not as a silent success.
+    let dir = tempfile::tempdir().expect("temp dir");
+    let crash_dir = dir.path().join("crash");
+    let core = dir.path().join("core.zst");
+    std::fs::write(&core, vec![0u8; 4096]).expect("write core");
+    write_pending(&crash_dir, &unconfirmed(&core)).expect("write pending");
+
+    let store = PendingStore::new(&crash_dir, UID);
+    let entry = store.list().remove(0);
+    let session = ReportSession::with_catalog(&store, entry, english());
+
+    let client = blankres_client::Client::new(blankres_client::Endpoint::new(
+        "http://127.0.0.1:1",
+        "token",
+    ))
+    .expect("client");
+
+    let err = session.send(&client).await.expect_err("must fail");
+    assert!(
+        matches!(err, blankres_session::SessionError::Upload(_)),
+        "{err}"
+    );
+    // Nothing was destroyed, so the user can try again later.
+    assert!(core.exists());
+    assert_eq!(store.list().len(), 1);
 }

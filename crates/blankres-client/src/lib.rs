@@ -69,6 +69,9 @@ pub struct UploadReceipt {
     pub url: Option<String>,
 }
 
+/// Cloning is cheap: `reqwest::Client` is a handle to a shared connection pool. The daemon
+/// clones one into the task that reports a crash so the request can run alongside local work.
+#[derive(Clone)]
 pub struct Client {
     http: reqwest::Client,
     endpoint: Endpoint,

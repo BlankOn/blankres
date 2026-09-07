@@ -125,12 +125,20 @@ pub struct PendingUpload {
     pub directive: crate::event::PayloadDirective,
     /// Unix seconds when the daemon wrote this file.
     pub written_at: u64,
+    /// True when the server could not be reached, so nobody has yet said whether the payload is
+    /// wanted. The report is still shown to the user: a crash that cannot be reported is not a
+    /// crash that should be hidden. The directive is obtained when they choose to send.
+    #[serde(default)]
+    pub awaiting_directive: bool,
 }
 
 impl PendingUpload {
     /// Whether this can still be sent, or whether the server's offer has lapsed.
+    ///
+    /// A report still awaiting a directive is always actionable: there is no offer to expire yet,
+    /// and the point of showing it is to let the user decide before one exists.
     pub fn is_actionable(&self, now: u64) -> bool {
-        self.directive.is_actionable(now)
+        self.awaiting_directive || self.directive.is_actionable(now)
     }
 
     /// Filename to use under `/var/crash`, keyed by executable and uid so one user's crashes are

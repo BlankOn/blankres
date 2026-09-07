@@ -121,6 +121,7 @@ fn reporter(
         crash_dir: crash_dir.to_path_buf(),
         kernel_oops: false,
         delete_declined_cores: true,
+        directive_timeout_secs: 3,
     };
 
     let client = Client::new(config.endpoint.clone()).expect("client");
@@ -315,11 +316,107 @@ async fn an_unreachable_server_spools_the_event_instead_of_losing_it() {
         .await
         .expect("handled");
 
-    assert!(matches!(outcome, Outcome::Spooled { .. }), "{outcome:?}");
+    assert!(
+        matches!(outcome, Outcome::SpooledAwaitingConsent { .. }),
+        "{outcome:?}"
+    );
     assert!(
         core.exists(),
         "an unsent crash must keep its core for a later attempt"
     );
     let spool = Spool::new(state_dir.join("spool")).expect("spool");
     assert_eq!(spool.len(), 1, "the crash must survive being offline");
+}
+
+fn now_secs() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("clock")
+        .as_secs()
+}
+
+#[tokio::test]
+async fn an_unreachable_server_still_shows_the_crash_to_the_user() {
+    // The regression this exists for: the daemon used to spool the event and return, so a crash
+    // that happened while the server was down was never surfaced at all. Silence is the one
+    // outcome a user can neither act on nor question.
+    let dir = tempfile::tempdir().expect("temp dir");
+    let reporter = reporter(
+        "http://127.0.0.1:1",
+        &dir.path().join("crash"),
+        &dir.path().join("state"),
+    );
+    let (record, core) = record(dir.path(), &unique("offlinepopup"));
+    let mut state = State::default();
+
+    let outcome = reporter
+        .handle_coredump(&record, &mut state)
+        .await
+        .expect("handled");
+
+    let Outcome::SpooledAwaitingConsent { path, .. } = outcome else {
+        panic!("expected a report awaiting consent, got {outcome:?}");
+    };
+    assert!(
+        path.exists(),
+        "a report must be written for the front end to show"
+    );
+
+    let pending: PendingUpload =
+        serde_json::from_slice(&std::fs::read(&path).expect("read")).expect("parse");
+    assert!(
+        pending.awaiting_directive,
+        "it must be marked as unconfirmed"
+    );
+    assert!(
+        pending.directive.upload_token.is_none(),
+        "no upload token may be invented while the server is unreachable"
+    );
+    assert!(
+        pending.is_actionable(now_secs()),
+        "the user must be able to act on it; there is no offer to have expired yet"
+    );
+    assert!(core.exists(), "the core is kept until the user decides");
+}
+
+#[tokio::test]
+async fn a_slow_server_does_not_hold_the_crash_back() {
+    // A server that accepts the connection but never answers is worse than one that is down: the
+    // report would otherwise sit behind the client's 30 second request timeout.
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("bind");
+    let address = listener.local_addr().expect("addr");
+    tokio::spawn(async move {
+        let mut held = Vec::new();
+        while let Ok((stream, _)) = listener.accept().await {
+            // Accept and then answer nothing at all.
+            held.push(stream);
+        }
+    });
+
+    let dir = tempfile::tempdir().expect("temp dir");
+    let reporter = reporter(
+        &format!("http://{address}"),
+        &dir.path().join("crash"),
+        &dir.path().join("state"),
+    );
+    let (record, _core) = record(dir.path(), &unique("slow"));
+    let mut state = State::default();
+
+    let started = std::time::Instant::now();
+    let outcome = reporter
+        .handle_coredump(&record, &mut state)
+        .await
+        .expect("handled");
+    let elapsed = started.elapsed();
+
+    assert!(
+        matches!(outcome, Outcome::SpooledAwaitingConsent { .. }),
+        "{outcome:?}"
+    );
+    assert!(
+        elapsed < std::time::Duration::from_secs(10),
+        "the 3 second deadline should have fired, took {elapsed:?}"
+    );
 }

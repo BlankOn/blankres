@@ -115,6 +115,7 @@ fn crash_page(
     let program = entry.program();
     let size = entry.transfer_size();
     let expired = !session.is_actionable(blankres_session::now_secs());
+    let awaiting = entry.pending.awaiting_directive;
 
     let page = adw::PreferencesPage::new();
 
@@ -143,6 +144,8 @@ fn crash_page(
     // when deciding whether to send a snapshot of their own memory.
     let subtitle = gtk::Label::new(Some(&if expired {
         catalog.expired().to_owned()
+    } else if awaiting {
+        catalog.awaiting_server(&human_size(size))
     } else {
         catalog.upload_warning(&human_size(size))
     }));

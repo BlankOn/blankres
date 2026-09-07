@@ -127,6 +127,30 @@ impl Catalog {
         )
     }
 
+    /// Shown when the crash could not be reported yet. It has to set the right expectation: the
+    /// upload happens now, on the user's action, not silently in the background.
+    pub fn awaiting_server(&self, size: &str) -> String {
+        pick!(
+            self,
+            format!(
+                "The crash server could not be reached, so this has not been reported yet. \
+                 Sending it uploads {size}, including a snapshot of the program's memory."
+            ),
+            format!(
+                "Server kerusakan tidak dapat dihubungi, sehingga laporan ini belum dikirim. \
+                 Mengirimnya mengunggah {size}, termasuk cuplikan memori program tersebut."
+            )
+        )
+    }
+
+    pub fn not_wanted(&self) -> &'static str {
+        pick!(
+            self,
+            "The server already has enough reports for this problem. Nothing was sent.",
+            "Server sudah memiliki cukup laporan untuk masalah ini. Tidak ada yang dikirim."
+        )
+    }
+
     pub fn expired(&self) -> &'static str {
         pick!(
             self,
@@ -489,6 +513,8 @@ pub fn all_strings(catalog: &Catalog) -> Vec<String> {
         c.closed_unexpectedly("firefox"),
         c.upload_warning("412.0 MB"),
         c.expired().to_owned(),
+        c.awaiting_server("412.0 MB"),
+        c.not_wanted().to_owned(),
         c.what_would_be_sent().to_owned(),
         c.what_would_be_sent_detail().to_owned(),
         c.send_report().to_owned(),

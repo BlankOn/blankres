@@ -8,6 +8,8 @@ use serde::{Deserialize, Serialize};
 pub const DEFAULT_CONFIG: &str = "/etc/blankres/client.json";
 pub const DEFAULT_STATE_DIR: &str = "/var/lib/blankres";
 pub const DEFAULT_CRASH_DIR: &str = "/var/crash";
+/// Where reports go unless configured otherwise.
+pub const DEFAULT_SERVER: &str = "https://kres.blankonlinux.id";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ClientConfig {
@@ -21,6 +23,11 @@ pub struct ClientConfig {
     pub state_dir: PathBuf,
     #[serde(default = "default_crash_dir")]
     pub crash_dir: PathBuf,
+    /// How long to wait for the server to say whether it wants a payload before showing the
+    /// crash to the user regardless. Short on purpose: this is a person waiting to find out why
+    /// their program vanished, not a batch job.
+    #[serde(default = "default_directive_timeout")]
+    pub directive_timeout_secs: u64,
     /// Watch the kernel journal for oopses as well as user-space crashes.
     #[serde(default = "default_true")]
     pub kernel_oops: bool,
@@ -38,6 +45,10 @@ fn default_crash_dir() -> PathBuf {
     PathBuf::from(DEFAULT_CRASH_DIR)
 }
 
+fn default_directive_timeout() -> u64 {
+    3
+}
+
 fn default_true() -> bool {
     true
 }
@@ -45,8 +56,9 @@ fn default_true() -> bool {
 impl Default for ClientConfig {
     fn default() -> Self {
         Self {
-            endpoint: Endpoint::new("http://127.0.0.1:8080", ""),
+            endpoint: Endpoint::new(DEFAULT_SERVER, ""),
             telemetry_enabled: false,
+            directive_timeout_secs: default_directive_timeout(),
             state_dir: default_state_dir(),
             crash_dir: default_crash_dir(),
             kernel_oops: true,

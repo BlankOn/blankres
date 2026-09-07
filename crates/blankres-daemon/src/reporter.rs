@@ -2,6 +2,7 @@
 //! asks — a pending payload written for the user to review.
 
 use std::path::PathBuf;
+use std::time::Duration;
 
 use blankres_client::Client;
 use blankres_collect::pkg::PackageBackend;
@@ -28,8 +29,9 @@ pub enum Outcome {
     ReportedCoreDropped { signature: String },
     /// Reported; the server asked for a payload, which is now awaiting consent.
     AwaitingConsent { signature: String, path: PathBuf },
-    /// Could not reach the server; the event is spooled for a later attempt.
-    Spooled { signature: String },
+    /// Could not reach the server. The event is spooled, and the payload is shown to the user
+    /// anyway rather than the crash passing in silence.
+    SpooledAwaitingConsent { signature: String, path: PathBuf },
 }
 
 pub struct Reporter<F: Filesystem, P: PackageBackend> {
@@ -59,9 +61,11 @@ impl<F: Filesystem + Clone, P: PackageBackend> Reporter<F, P> {
 
     /// Handle one coredump.
     ///
-    /// The ordering here is the whole design: suppression is checked before collection, stage 1 is
-    /// built and sent before anything expensive happens, and stage 2 runs only if the answer came
-    /// back asking for it.
+    /// Suppression is checked before any collection. Then the stage-1 event and the cheap half of
+    /// a stage-2 payload are prepared *concurrently*: the user should never wait on the network to
+    /// be told their program crashed, and a server that is slow or down must not turn a crash into
+    /// silence. Only the expensive half of stage 2, hashing the mapped libraries, waits until the
+    /// payload is known to be worth keeping.
     pub async fn handle_coredump(
         &self,
         record: &CoredumpRecord,
@@ -107,77 +111,117 @@ impl<F: Filesystem + Clone, P: PackageBackend> Reporter<F, P> {
             "stage 1 collected"
         );
 
-        let directive = match self.send(&event).await {
-            Some(directive) => directive,
-            None => {
-                let _ = self.spool.push(&event);
-                return Ok(Outcome::Spooled {
-                    signature: event.signature.hash,
-                });
-            }
-        };
+        // Ask the server, on its own task, under a deadline.
+        let query = self.ask_server(event.clone());
 
-        self.act_on(event, directive, record).await
-    }
-
-    /// Send a stage-1 event, returning `None` when the server could not be reached.
-    async fn send(&self, event: &CrashEvent) -> Option<PayloadDirective> {
-        match self.client.send_events(std::slice::from_ref(event)).await {
-            Ok(mut directives) if !directives.is_empty() => Some(directives.remove(0)),
-            Ok(_) => None,
-            Err(err) => {
-                tracing::warn!(error = %err, "could not report crash; spooling");
-                None
-            }
-        }
-    }
-
-    /// Do what the directive says.
-    async fn act_on(
-        &self,
-        event: CrashEvent,
-        directive: PayloadDirective,
-        record: &CoredumpRecord,
-    ) -> std::io::Result<Outcome> {
-        let signature = event.signature.hash.clone();
-
-        if !directive.is_actionable(now_secs()) {
-            // The common case: the server already has enough cores for this bug. Reclaim the disk
-            // that apport would have kept indefinitely.
-            if self.config.delete_declined_cores {
-                if let Some(path) = record.core_path() {
-                    match std::fs::remove_file(&path) {
-                        Ok(()) => {
-                            tracing::debug!(path = %path.display(), "core not wanted; removed")
-                        }
-                        Err(err) => tracing::debug!(error = %err, "could not remove core"),
-                    }
-                }
-            }
-            return Ok(Outcome::ReportedCoreDropped { signature });
-        }
-
-        // Only now is expensive collection justified.
-        let mut budget = Budget::stage2();
-        let report = self
-            .stage2
-            .collect_within(event, directive.id.clone(), record, &mut budget);
-
-        tracing::info!(
-            signature = %&signature[..12],
-            bytes = report.transfer_size(),
-            elapsed = ?budget.elapsed(),
-            "stage 2 collected; awaiting consent"
+        // Meanwhile, assemble everything that comes from the journal record. This costs
+        // microseconds and means the report is ready the moment the answer arrives, or the moment
+        // we give up waiting for one.
+        let mut stage2 = Budget::stage2();
+        let mut report = self.stage2.collect_without_verification(
+            event.clone(),
+            String::new(),
+            record,
+            &mut stage2,
         );
 
+        // A panicking task is indistinguishable from an unreachable server here, and the
+        // right response to both is the same.
+        let directive = query.await.unwrap_or(None);
+        let signature = event.signature.hash.clone();
+
+        match directive {
+            // The server answered and does not want a payload. The common case at steady state:
+            // reclaim the disk and say nothing, because there is nothing the user could add.
+            Some(directive) if !directive.is_actionable(now_secs()) => {
+                self.drop_core(record);
+                Ok(Outcome::ReportedCoreDropped { signature })
+            }
+
+            // The server answered and wants the payload.
+            Some(directive) => {
+                self.stage2.verify_into(&mut report, record, &mut stage2);
+                report.directive_id = directive.id.clone();
+                let path = self.write_pending(report, directive, false)?;
+                tracing::info!(
+                    signature = %&signature[..12],
+                    path = %path.display(),
+                    "payload requested; awaiting user consent"
+                );
+                Ok(Outcome::AwaitingConsent { signature, path })
+            }
+
+            // No answer. Spool the event for later, and still tell the user: a crash we could not
+            // report is not a crash we should hide from the person it happened to. Whether the
+            // payload is actually wanted is settled when they choose to send it.
+            None => {
+                let _ = self.spool.push(&event);
+                self.stage2.verify_into(&mut report, record, &mut stage2);
+                let path = self.write_pending(report, unconfirmed_directive(), true)?;
+                tracing::info!(
+                    signature = %&signature[..12],
+                    path = %path.display(),
+                    "server unreachable; event spooled and the crash shown to the user anyway"
+                );
+                Ok(Outcome::SpooledAwaitingConsent { signature, path })
+            }
+        }
+    }
+
+    /// Send the stage-1 event on its own task, bounded by a deadline.
+    ///
+    /// Returning `None` covers every way of not getting an answer, because they all lead to the
+    /// same decision: do not leave the user in the dark.
+    fn ask_server(&self, event: CrashEvent) -> tokio::task::JoinHandle<Option<PayloadDirective>> {
+        let client = self.client.clone();
+        let deadline = Duration::from_secs(self.config.directive_timeout_secs.max(1));
+
+        tokio::spawn(async move {
+            let request = client.send_events(std::slice::from_ref(&event));
+            match tokio::time::timeout(deadline, request).await {
+                Ok(Ok(mut directives)) if !directives.is_empty() => Some(directives.remove(0)),
+                Ok(Ok(_)) => {
+                    tracing::warn!("server returned no directive for the event");
+                    None
+                }
+                Ok(Err(err)) => {
+                    tracing::warn!(error = %err, "could not report crash; spooling");
+                    None
+                }
+                Err(_) => {
+                    tracing::warn!(?deadline, "server did not answer in time; spooling");
+                    None
+                }
+            }
+        })
+    }
+
+    /// Delete a core the server has told us it does not need.
+    fn drop_core(&self, record: &CoredumpRecord) {
+        if !self.config.delete_declined_cores {
+            return;
+        }
+        if let Some(path) = record.core_path() {
+            match std::fs::remove_file(&path) {
+                Ok(()) => tracing::debug!(path = %path.display(), "core not wanted; removed"),
+                Err(err) => tracing::debug!(error = %err, "could not remove core"),
+            }
+        }
+    }
+
+    fn write_pending(
+        &self,
+        report: blankres_report::report::Report,
+        directive: PayloadDirective,
+        awaiting_directive: bool,
+    ) -> std::io::Result<PathBuf> {
         let pending = PendingUpload {
             report,
             directive,
             written_at: now_secs(),
+            awaiting_directive,
         };
-        let path = write_pending(&self.config.crash_dir, &pending)?;
-
-        Ok(Outcome::AwaitingConsent { signature, path })
+        write_pending(&self.config.crash_dir, &pending)
     }
 
     /// Try to send everything that failed to reach the server earlier.
@@ -204,5 +248,20 @@ impl<F: Filesystem + Clone, P: PackageBackend> Reporter<F, P> {
             }
             Err(err) => tracing::debug!(error = %err, "spool drain failed; will retry"),
         }
+    }
+}
+
+/// The directive stood in for a server that could not be reached.
+///
+/// `need_payload` is true because we do not know that it is false, and the honest default when a
+/// crash cannot be reported is to ask the person it happened to. No upload token is invented: the
+/// real one is fetched when they choose to send.
+fn unconfirmed_directive() -> PayloadDirective {
+    PayloadDirective {
+        id: String::new(),
+        need_payload: true,
+        upload_token: None,
+        max_bytes: None,
+        expires_at: None,
     }
 }
