@@ -1,0 +1,254 @@
+services:
+  traefik:
+    image: traefik:v3.5
+    container_name: traefik
+    restart: unless-stopped
+
+    ports:
+      - "80:80"
+      - "443:443"
+
+    volumes:
+      - ./traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./dynamic.yml:/etc/traefik/dynamic.yml:ro
+      - ./acme.json:/acme.json
+
+    networks:
+      - traefik
+
+  raska:
+    image: nginx:alpine
+    container_name: raska
+    restart: unless-stopped
+
+    volumes:
+      - ./www:/usr/share/nginx/html:ro
+
+    networks:
+      - traefik
+
+  workspace-webhooks:
+    image: docker.io/library/workspace-webhooks:latest
+    container_name: workspace-webhooks
+    restart: unless-stopped
+
+    volumes:
+      - ./webhook-config.yaml:/app/config.yaml:ro
+
+    networks:
+      - traefik
+
+  # --------------------------------------------------------------------------
+  # blankres
+  # --------------------------------------------------------------------------
+
+  blankres-postgres:
+    image: postgres:16-alpine
+    container_name: blankres-postgres
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_DB: blankres
+      POSTGRES_USER: blankres
+      POSTGRES_PASSWORD: ${BLANKRES_POSTGRES_PASSWORD}
+
+    volumes:
+      - blankres-postgres-data:/var/lib/postgresql/data
+
+    healthcheck:
+      # blankres applies its own migrations at startup and will not serve traffic until they are
+      # done, so it must not start against a database that is still initialising.
+      test: ["CMD-SHELL", "pg_isready -U blankres -d blankres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+    networks:
+      - blankres
+
+  blankres:
+    image: herpiko/blankres-ingest:latest
+    container_name: blankres
+    restart: unless-stopped
+
+    depends_on:
+      blankres-postgres:
+        condition: service_healthy
+
+    environment:
+      DATABASE_URL: postgres://blankres:${BLANKRES_POSTGRES_PASSWORD}@blankres-postgres:5432/blankres
+
+      # The bearer token every reporting machine sends. Anyone holding it can submit crashes.
+      BLANKRES_TOKEN: ${BLANKRES_TOKEN}
+
+      # Behind a proxy the server cannot know its own name, and this is what an upload receipt
+      # hands back as the report's URL.
+      BLANKRES_PUBLIC_URL: https://kres.blankonlinux.id
+
+      # How many core dumps to keep per distinct crash before telling clients not to send more.
+      # This one number is what keeps a fleet-wide flood of gigabyte cores down to a handful.
+      BLANKRES_PAYLOADS_PER_SIGNATURE: ${BLANKRES_PAYLOADS_PER_SIGNATURE:-5}
+
+      # A public endpoint taking uploads from untrusted machines wants a real ceiling; the
+      # built-in default of 2 GiB is generous for a shared host. 512 MiB here.
+      BLANKRES_MAX_PAYLOAD_BYTES: ${BLANKRES_MAX_PAYLOAD_BYTES:-536870912}
+
+      RUST_LOG: blankres_server=info
+
+    volumes:
+      # Core dumps live here. This is the volume that will actually grow.
+      - blankres-storage:/var/lib/blankres-ingest
+
+    networks:
+      - traefik
+      - blankres
+
+  # --------------------------------------------------------------------------
+  # Discourse
+  # --------------------------------------------------------------------------
+
+  discourse-postgres:
+    image: pgvector/pgvector:pg16
+    container_name: discourse-postgres
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_DB: discourse
+      POSTGRES_USER: discourse
+      POSTGRES_PASSWORD: ${DISCOURSE_POSTGRES_PASSWORD}
+
+    volumes:
+      - discourse-postgres-data:/var/lib/postgresql/data
+
+    networks:
+      - discourse
+
+  discourse-redis:
+    image: redis:7-alpine
+    container_name: discourse-redis
+    restart: unless-stopped
+
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+
+    volumes:
+      - discourse-redis-data:/data
+
+    networks:
+      - discourse
+
+  discourse:
+    image: discourse/discourse:2026.7.2
+    container_name: discourse
+    restart: unless-stopped
+
+    depends_on:
+      - discourse-postgres
+      - discourse-redis
+
+    environment:
+      # ----------------------------------------------------------------------
+      # General
+      # ----------------------------------------------------------------------
+
+      DISCOURSE_HOSTNAME: forum.blankonlinux.id
+      DISCOURSE_SITENAME: Forum BlankOn Linux
+
+      DISCOURSE_DEVELOPER_EMAILS: ${DISCOURSE_ADMIN_EMAIL}
+
+      # ----------------------------------------------------------------------
+      # Database
+      # ----------------------------------------------------------------------
+
+      DISCOURSE_DB_HOST: discourse-postgres
+      DISCOURSE_DB_PORT: 5432
+      DISCOURSE_DB_NAME: discourse
+      DISCOURSE_DB_USERNAME: discourse
+      DISCOURSE_DB_PASSWORD: ${DISCOURSE_POSTGRES_PASSWORD}
+
+      # ----------------------------------------------------------------------
+      # Redis
+      # ----------------------------------------------------------------------
+
+      DISCOURSE_REDIS_HOST: discourse-redis
+      DISCOURSE_REDIS_PORT: 6379
+
+      # ----------------------------------------------------------------------
+      # SMTP
+      # ----------------------------------------------------------------------
+
+      DISCOURSE_SMTP_ADDRESS: ${DISCOURSE_SMTP_ADDRESS}
+      DISCOURSE_SMTP_PORT: ${DISCOURSE_SMTP_PORT:-587}
+      DISCOURSE_SMTP_USER_NAME: ${DISCOURSE_SMTP_USERNAME}
+      DISCOURSE_SMTP_PASSWORD: ${DISCOURSE_SMTP_PASSWORD}
+      DISCOURSE_SMTP_ENABLE_START_TLS: "true"
+
+      # ----------------------------------------------------------------------
+      # Reverse proxy / HTTPS
+      # ----------------------------------------------------------------------
+
+      DISCOURSE_FORCE_HTTPS: "true"
+
+    volumes:
+      - discourse-data:/shared
+
+    networks:
+      - traefik
+      - discourse
+
+    labels:
+      - traefik.enable=true
+
+      # ----------------------------------------------------------------------
+      # HTTP router
+      # ----------------------------------------------------------------------
+
+      - traefik.http.routers.discourse.rule=Host(`forum.blankonlinux.id`)
+      - traefik.http.routers.discourse.entrypoints=websecure
+      - traefik.http.routers.discourse.tls=true
+      - traefik.http.routers.discourse.tls.certresolver=letsencrypt
+
+      # ----------------------------------------------------------------------
+      # Service
+      # ----------------------------------------------------------------------
+
+      - traefik.http.services.discourse.loadbalancer.server.port=80
+
+      # ----------------------------------------------------------------------
+      # Security / headers
+      # ----------------------------------------------------------------------
+
+      - traefik.http.routers.discourse.middlewares=discourse-headers
+
+      - traefik.http.middlewares.discourse-headers.headers.stsSeconds=31536000
+      - traefik.http.middlewares.discourse-headers.headers.stsIncludeSubdomains=true
+      - traefik.http.middlewares.discourse-headers.headers.stsPreload=true
+
+volumes:
+  discourse-data:
+    name: discourse-data
+
+  discourse-postgres-data:
+    name: discourse-postgres-data
+
+  discourse-redis-data:
+    name: discourse-redis-data
+
+  blankres-postgres-data:
+    name: blankres-postgres-data
+
+  blankres-storage:
+    name: blankres-storage
+
+networks:
+  traefik:
+    driver: bridge
+
+  discourse:
+    driver: bridge
+
+  blankres:
+    driver: bridge

@@ -1,0 +1,218 @@
+http:
+  routers:
+
+    # ============================================================
+    # arsip-dev.blankonlinux.id
+    # ============================================================
+
+    arsip-dev-root:
+      rule: "Host(`arsip-dev.blankonlinux.id`) && Path(`/`)"
+      entryPoints:
+        - websecure
+      service: raska
+      priority: 200
+      tls:
+        certResolver: letsencrypt
+
+    arsip-dev-path:
+      rule: "Host(`arsip-dev.blankonlinux.id`) && PathPrefix(`/`)"
+      entryPoints:
+        - websecure
+      service: arsip-dev
+      priority: 100
+      tls:
+        certResolver: letsencrypt
+
+    arsip-dev-root-http:
+      rule: "Host(`arsip-dev.blankonlinux.id`) && Path(`/`)"
+      entryPoints:
+        - web
+      service: raska
+      priority: 200
+
+    arsip-dev-path-http:
+      rule: "Host(`arsip-dev.blankonlinux.id`) && PathPrefix(`/`)"
+      entryPoints:
+        - web
+      service: arsip-dev
+      priority: 100
+
+
+    # ============================================================
+    # irgsh.blankonlinux.id
+    # ============================================================
+
+    irgsh:
+      rule: "Host(`irgsh.blankonlinux.id`)"
+      entryPoints:
+        - websecure
+      service: irgsh
+      tls:
+        certResolver: letsencrypt
+
+    irgsh-http:
+      rule: "Host(`irgsh.blankonlinux.id`)"
+      entryPoints:
+        - web
+      service: irgsh
+
+
+    # ============================================================
+    # jahitan.blankonlinux.id
+    # ============================================================
+
+    jahitan:
+      rule: "Host(`jahitan.blankonlinux.id`)"
+      entryPoints:
+        - websecure
+      service: jahitan
+      tls:
+        certResolver: letsencrypt
+
+    jahitan-http:
+      rule: "Host(`jahitan.blankonlinux.id`)"
+      entryPoints:
+        - web
+      service: jahitan
+
+
+    # ============================================================
+    # raska.blankonlinux.id
+    # ============================================================
+
+    raska:
+      rule: "Host(`raska.blankonlinux.id`)"
+      entryPoints:
+        - websecure
+      service: raska
+      tls:
+        certResolver: letsencrypt
+
+    raska-http:
+      rule: "Host(`raska.blankonlinux.id`)"
+      entryPoints:
+        - web
+      service: raska
+
+
+    # ============================================================
+    # workspace-webhooks.blankonlinux.id
+    # ============================================================
+
+    webhooks:
+      rule: "Host(`workspace-webhooks.blankonlinux.id`)"
+      entryPoints:
+        - websecure
+      service: webhooks
+      tls:
+        certResolver: letsencrypt
+
+    webhooks-http:
+      rule: "Host(`workspace-webhooks.blankonlinux.id`)"
+      entryPoints:
+        - web
+      service: webhooks
+
+
+    # ============================================================
+    # forum.blankonlinux.id
+    # ============================================================
+
+    discourse:
+      rule: "Host(`forum.blankonlinux.id`)"
+      entryPoints:
+        - websecure
+      service: discourse
+      tls:
+        certResolver: letsencrypt
+
+    discourse-http:
+      rule: "Host(`forum.blankonlinux.id`)"
+      entryPoints:
+        - web
+      service: discourse
+
+
+    # ============================================================
+    # kres.blankonlinux.id
+    # ============================================================
+
+    blankres:
+      rule: "Host(`kres.blankonlinux.id`)"
+      entryPoints:
+        - websecure
+      service: blankres
+      middlewares:
+        - blankres-limit
+      tls:
+        certResolver: letsencrypt
+
+    blankres-http:
+      rule: "Host(`kres.blankonlinux.id`)"
+      entryPoints:
+        - web
+      service: blankres
+
+
+  # ============================================================
+  # MIDDLEWARES
+  # ============================================================
+
+  middlewares:
+
+    # /v1/events is hit by every crash on every machine in the fleet, and the endpoint is only as
+    # protected as one shared token. A ceiling costs nothing and bounds the damage from a machine
+    # stuck in a crash loop, or from a leaked token.
+    blankres-limit:
+      rateLimit:
+        average: 20
+        burst: 50
+
+
+  # ============================================================
+  # SERVICES
+  # ============================================================
+
+  services:
+
+    arsip-dev:
+      loadBalancer:
+        servers:
+          - url: "http://192.168.200.3:8082"
+        passHostHeader: true
+
+    irgsh:
+      loadBalancer:
+        servers:
+          - url: "http://192.168.200.3:8080"
+        passHostHeader: true
+
+    jahitan:
+      loadBalancer:
+        servers:
+          - url: "http://192.168.200.2:80"
+        passHostHeader: true
+
+    raska:
+      loadBalancer:
+        servers:
+          - url: "http://raska:80"
+        passHostHeader: true
+
+    webhooks:
+      loadBalancer:
+        servers:
+          - url: "http://workspace-webhooks:8080"
+        passHostHeader: true
+
+    discourse:
+      loadBalancer:
+        servers:
+          - url: "http://discourse:80"
+        passHostHeader: true
+
+    blankres:
+      loadBalancer:
+        servers:
+          - url: "http://blankres:8080"
+        passHostHeader: true

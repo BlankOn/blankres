@@ -1,12 +1,12 @@
 # Common tasks. `make` on its own lists them.
 
-IMAGE ?= blankres-ingest
+IMAGE ?= herpiko/blankres-ingest
 TAG   ?= $(shell sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
 
 # The end-to-end suites need a database; without this they skip rather than fail.
 TEST_DATABASE_URL ?= postgres://blankres:blankres@127.0.0.1:55432/blankres
 
-.PHONY: help build test check fmt clippy deb build-docker up down logs clean
+.PHONY: help build test check fmt clippy deb build-docker push-docker up down logs clean
 
 help:
 	@echo "build         build every binary in release mode"
@@ -16,6 +16,7 @@ help:
 	@echo "clippy        lint the workspace, warnings are errors"
 	@echo "deb           build the client Debian package"
 	@echo "build-docker  build the ingest server image as $(IMAGE):$(TAG)"
+	@echo "push-docker   push that image and its latest tag"
 	@echo "up            start the ingest server and its database with docker compose"
 	@echo "down          stop them (add KEEP=0 to delete the stored crash data too)"
 	@echo "logs          follow the ingest server's logs"
@@ -43,6 +44,10 @@ deb:
 
 build-docker:
 	docker build -t $(IMAGE):$(TAG) -t $(IMAGE):latest .
+
+push-docker: build-docker
+	docker push $(IMAGE):$(TAG)
+	docker push $(IMAGE):latest
 
 # Local deployment. See docker-compose.yaml for what it starts and what it deliberately does not.
 up:

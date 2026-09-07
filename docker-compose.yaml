@@ -33,7 +33,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: blankres-ingest:${TAG:-0.2.1}
+    image: herpiko/blankres-ingest:${TAG:-latest}
     depends_on:
       postgres:
         condition: service_healthy

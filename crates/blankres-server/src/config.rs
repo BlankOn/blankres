@@ -104,6 +104,23 @@ impl Config {
                 config.payloads_per_signature = quota;
             }
         }
+        // Behind a reverse proxy the server cannot know its own public name, so an upload receipt
+        // has no URL to hand back unless it is told one.
+        if let Ok(url) = std::env::var("BLANKRES_PUBLIC_URL") {
+            config.public_url = Some(url.trim_end_matches('/').to_owned());
+        }
+        // Worth setting on a public endpoint: the built-in default is deliberately generous, and
+        // an unbounded upload from an untrusted machine is a way to fill a disk.
+        if let Ok(bytes) = std::env::var("BLANKRES_MAX_PAYLOAD_BYTES") {
+            if let Ok(bytes) = bytes.parse() {
+                config.max_payload_bytes = bytes;
+            }
+        }
+        if let Ok(secs) = std::env::var("BLANKRES_UPLOAD_TOKEN_TTL_SECS") {
+            if let Ok(secs) = secs.parse() {
+                config.upload_token_ttl_secs = secs;
+            }
+        }
 
         if config.database_url.is_empty() {
             return Err(ConfigError::MissingDatabaseUrl);
