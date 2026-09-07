@@ -35,7 +35,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "blankres_server=info,tower_http=info".into()),
+                // The binary is `blankres-ingest`, so its own messages are tagged
+                // `blankres_ingest`, not `blankres_server`. Leaving it out of the filter silences
+                // every line this file logs, startup included, which looks exactly like a server
+                // that is not running.
+                .unwrap_or_else(|_| {
+                    "blankres_ingest=info,blankres_server=info,tower_http=info".into()
+                }),
         )
         .init();
 

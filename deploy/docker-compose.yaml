@@ -94,7 +94,7 @@ services:
       # built-in default of 2 GiB is generous for a shared host. 512 MiB here.
       BLANKRES_MAX_PAYLOAD_BYTES: ${BLANKRES_MAX_PAYLOAD_BYTES:-536870912}
 
-      RUST_LOG: blankres_server=info
+      RUST_LOG: blankres_ingest=info,blankres_server=info,tower_http=info
 
     volumes:
       # Core dumps live here. This is the volume that will actually grow.

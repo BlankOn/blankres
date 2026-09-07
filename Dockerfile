@@ -39,7 +39,7 @@ WORKDIR /var/lib/blankres-ingest
 # Bind to every interface, since the point of a container is to be reached from outside it.
 ENV BLANKRES_BIND=0.0.0.0:8080 \
     BLANKRES_STORAGE_ROOT=/var/lib/blankres-ingest \
-    RUST_LOG=blankres_server=info
+    RUST_LOG=blankres_ingest=info,blankres_server=info,tower_http=info
 
 EXPOSE 8080
 

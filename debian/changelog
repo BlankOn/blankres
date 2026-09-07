@@ -1,3 +1,17 @@
+blankres (0.2.2) unstable; urgency=medium
+
+  * Log one line per request in the ingest server. It previously logged
+    nothing after startup, which is indistinguishable from doing nothing.
+  * Include the binary's own crate in the default log filter. The binary is
+    blankres-ingest, so its messages are tagged blankres_ingest rather than
+    blankres_server, and a filter naming only the library silenced every line
+    it logged, startup included.
+  * Allow BLANKRES_PUBLIC_URL, BLANKRES_MAX_PAYLOAD_BYTES and
+    BLANKRES_UPLOAD_TOKEN_TTL_SECS to be set from the environment, for
+    deployment behind a reverse proxy.
+
+ -- Herpiko Dwi Aguno <herpiko@gmail.com>  Tue, 08 Sep 2026 00:22:12 +0700
+
 blankres (0.2.1) unstable; urgency=medium
 
   * Treat closing the crash window as "Don't send". Dismissing a consent

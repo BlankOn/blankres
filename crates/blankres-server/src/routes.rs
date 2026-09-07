@@ -16,6 +16,7 @@ use uuid::Uuid;
 use crate::config::{hash_token, Config};
 use crate::db;
 use crate::storage::{write_metadata, LocalStorage, Storage as _};
+use tower_http::trace::TraceLayer;
 
 pub struct AppState {
     pub pool: PgPool,
@@ -35,6 +36,29 @@ pub fn router(state: SharedState) -> Router {
         // Multipart bodies are streamed field by field, so the global body limit is disabled here
         // and the real ceiling is the per-upload `max_bytes` from the directive.
         .layer(DefaultBodyLimit::disable())
+        // One line per request. Without it the only thing this service ever logs is that it
+        // started, which is indistinguishable from it doing nothing at all.
+        .layer(
+            TraceLayer::new_for_http()
+                .make_span_with(|request: &axum::http::Request<_>| {
+                    tracing::info_span!(
+                        "request",
+                        method = %request.method(),
+                        path = %request.uri().path(),
+                    )
+                })
+                .on_response(
+                    |response: &axum::http::Response<_>,
+                     latency: std::time::Duration,
+                     _span: &tracing::Span| {
+                        tracing::info!(
+                            status = response.status().as_u16(),
+                            latency_ms = latency.as_millis(),
+                            "handled"
+                        );
+                    },
+                ),
+        )
         .with_state(state)
 }
 
