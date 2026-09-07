@@ -52,7 +52,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
 
-    let config = blankres_server::Config::load(cli.config.as_deref())?;
+    // Printed via Display rather than propagated: `Box<dyn Error>` out of main renders the Debug
+    // form, which would turn a carefully worded explanation into the bare word "NoTokens".
+    let config = match blankres_server::Config::load(cli.config.as_deref()) {
+        Ok(config) => config,
+        Err(err) => {
+            tracing::error!("{err}");
+            std::process::exit(1);
+        }
+    };
     let bind = config.bind.clone();
     let quota = config.payloads_per_signature;
 

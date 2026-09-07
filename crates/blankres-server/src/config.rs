@@ -97,7 +97,12 @@ impl Config {
         // Convenience for development: a plaintext token in the environment is hashed here so the
         // comparison path never has a plaintext branch.
         if let Ok(token) = std::env::var("BLANKRES_TOKEN") {
-            config.token_hashes.push(hash_token(&token));
+            // Compose passes an unset variable through as an empty string, so an operator who
+            // forgets their .env would otherwise end up with the hash of "" in the accepted list.
+            // That is not a credential anybody meant to issue.
+            if !token.trim().is_empty() {
+                config.token_hashes.push(hash_token(&token));
+            }
         }
         if let Ok(quota) = std::env::var("BLANKRES_PAYLOADS_PER_SIGNATURE") {
             if let Ok(quota) = quota.parse() {
@@ -124,6 +129,13 @@ impl Config {
 
         if config.database_url.is_empty() {
             return Err(ConfigError::MissingDatabaseUrl);
+        }
+
+        // Refuse to start rather than run a server that can never accept a report. Without this
+        // a missing token produces a service that answers 401 to every client forever, looking
+        // for all the world like a client-side problem.
+        if config.token_hashes.is_empty() {
+            return Err(ConfigError::NoTokens);
         }
 
         Ok(config)
@@ -156,4 +168,10 @@ pub enum ConfigError {
         "no database url: set `database_url` in the config or DATABASE_URL in the environment"
     )]
     MissingDatabaseUrl,
+    #[error(
+        "no accepted tokens: set BLANKRES_TOKEN in the environment, or `token_hashes` in the \
+         config file (generate one with `blankres-ingest hash-token <token>`). Without a token \
+         the server would reject every report it is sent."
+    )]
+    NoTokens,
 }
