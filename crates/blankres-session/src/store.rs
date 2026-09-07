@@ -121,10 +121,19 @@ impl PendingStore {
             .filter_map(Result::ok)
             .map(|entry| entry.path())
             .filter(|path| path.extension().is_some_and(|ext| ext == "report"))
-            .filter_map(|path| {
-                let bytes = std::fs::read(&path).ok()?;
-                let pending: PendingUpload = serde_json::from_slice(&bytes).ok()?;
-                Some(PendingEntry { path, pending })
+            .filter_map(|path| match read_pending(&path) {
+                Ok(pending) => Some(PendingEntry { path, pending }),
+                // Skipping is right, but doing it silently is not: an unreadable report would
+                // otherwise present as "nothing to report", which is the one answer a user cannot
+                // act on or even question.
+                Err(err) => {
+                    tracing::warn!(
+                        path = %path.display(),
+                        error = %err,
+                        "ignoring a crash report that could not be read"
+                    );
+                    None
+                }
             })
             .collect();
 
@@ -158,6 +167,11 @@ impl PendingStore {
             let _ = std::fs::remove_file(path);
         }
     }
+}
+
+fn read_pending(path: &Path) -> std::io::Result<PendingUpload> {
+    let bytes = std::fs::read(path)?;
+    Ok(serde_json::from_slice(&bytes)?)
 }
 
 /// Signatures the user never wants to be asked about again.

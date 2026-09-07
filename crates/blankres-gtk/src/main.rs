@@ -7,6 +7,7 @@ mod app;
 mod ui;
 
 use adw::prelude::*;
+use gtk4::gio;
 use gtk4::glib;
 use libadwaita as adw;
 
@@ -20,7 +21,16 @@ fn main() -> glib::ExitCode {
         )
         .init();
 
-    let application = adw::Application::builder().application_id(APP_ID).build();
+    // NON_UNIQUE matters here. By default a second launch hands its activation to the process
+    // that is already running and exits within milliseconds, so the new process's configuration
+    // is discarded and the existing window keeps showing whatever crash directory it was started
+    // with. That is silent and looks exactly like having no crashes to report. Single-instance
+    // behaviour is not needed: the systemd user unit will not start a second copy while one is
+    // active, and a window launched by hand should show the reports its own configuration names.
+    let application = adw::Application::builder()
+        .application_id(APP_ID)
+        .flags(gio::ApplicationFlags::NON_UNIQUE)
+        .build();
 
     application.connect_activate(|application| {
         let context = app::AppContext::load();

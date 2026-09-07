@@ -26,7 +26,20 @@ impl AppContext {
             .map(PathBuf::from)
             .unwrap_or_else(|_| PathBuf::from(DEFAULT_CONFIG));
 
-        let config = ClientConfig::load(&config_path).unwrap_or_default();
+        // A configuration that cannot be read used to fall back silently, which pointed the
+        // window at the default /var/crash and produced an empty list indistinguishable from
+        // having nothing to report. Say so instead.
+        let config = match ClientConfig::load(&config_path) {
+            Ok(config) => config,
+            Err(err) => {
+                tracing::warn!(
+                    path = %config_path.display(),
+                    error = %err,
+                    "could not read the configuration; falling back to defaults"
+                );
+                ClientConfig::default()
+            }
+        };
 
         Self {
             store: PendingStore::new(config.crash_dir.clone(), current_uid()),
