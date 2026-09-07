@@ -6,4 +6,69 @@ blankres (0.2.4) unstable; urgency=medium
     suppressed crash is indistinguishable from a broken daemon.
 
  -- Herpiko Dwi Aguno <herpiko@gmail.com>  Tue, 08 Sep 2026 00:55:45 +0700
-\n
+
+blankres (0.2.3) unstable; urgency=medium
+
+  * Accept reports without a token when the server has none configured, so an
+    open endpoint is a deliberate deployment rather than a server that
+    rejects everything. The mode is stated at startup, with a warning when it
+    is open.
+  * Serve a dashboard at / listing the 50 most recent crashes, styled after
+    the IRGSH chief dashboard and refreshed with htmx. Report fields come
+    from clients and are escaped.
+
+ -- Herpiko Dwi Aguno <herpiko@gmail.com>  Tue, 08 Sep 2026 00:45:16 +0700
+
+blankres (0.2.2) unstable; urgency=medium
+
+  * Log one line per request in the ingest server. It previously logged
+    nothing after startup, which is indistinguishable from doing nothing.
+  * Include the binary's own crate in the default log filter. The binary is
+    blankres-ingest, so its messages are tagged blankres_ingest rather than
+    blankres_server, and a filter naming only the library silenced every line
+    it logged, startup included.
+  * Allow BLANKRES_PUBLIC_URL, BLANKRES_MAX_PAYLOAD_BYTES and
+    BLANKRES_UPLOAD_TOKEN_TTL_SECS to be set from the environment, for
+    deployment behind a reverse proxy.
+
+ -- Herpiko Dwi Aguno <herpiko@gmail.com>  Tue, 08 Sep 2026 00:22:12 +0700
+
+blankres (0.2.1) unstable; urgency=medium
+
+  * Treat closing the crash window as "Don't send". Dismissing a consent
+    dialog is not consent, and leaving the report behind also stopped the
+    window from ever opening again, because the path unit that starts it only
+    fires when the crash directory goes from empty to non-empty.
+  * Include the crash signature in the report filename. Two different bugs in
+    one program shared a filename, so the second crash silently overwrote the
+    first and took its upload token with it.
+  * Also watch the crash directory for changes, so a crash that arrives while
+    another report is still pending opens the window.
+
+ -- Herpiko Dwi Aguno <herpiko@gmail.com>  Mon, 07 Sep 2026 21:49:27 +0700
+
+blankres (0.2.0) unstable; urgency=medium
+
+  * Show a crash to the user even when the crash server cannot be reached.
+    The daemon previously spooled the report and returned silently, so a
+    crash that happened while the server was down was never surfaced at all.
+  * Ask the server whether it wants a payload while preparing the local half
+    of one, rather than one after the other, so the window never waits on the
+    network. The request now has a short deadline, configurable as
+    directive_timeout_secs.
+  * Default to https://kres.blankonlinux.id as the crash server.
+  * Make "Don't send" the default action and place it rightmost. Uploading a
+    snapshot of one's own process memory should be deliberate.
+  * Translate the interface into Bahasa Indonesia, selected from the locale.
+  * Stop the window handing its activation to an already running instance,
+    which made it show a stale crash directory or nothing at all.
+  * Stop tracking build output in the source tree, which broke source-only
+    builds elsewhere.
+
+ -- Herpiko Dwi Aguno <herpiko@gmail.com>  Mon, 07 Sep 2026 21:16:34 +0700
+
+blankres (0.1.0) unstable; urgency=medium
+
+  * Initial release.
+
+ -- Herpiko Dwi Aguno <herpiko@gmail.com>  Mon, 07 Sep 2026 03:34:00 +0700
