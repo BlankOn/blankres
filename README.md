@@ -9,3 +9,11 @@ concedes that it "takes a nontrivial amount of CPU and I/O resources" and delays
 crashed program by seconds. Every significant decision here follows from refusing that cost.
 
 How it works, how it avoids that cost, and how to run and test it are in [DESIGN.md](DESIGN.md).
+
+
+How to test the blankres daemon locally:
+
+```
+bash -c 'ulimit -c unlimited; sleep 300 & sleep 0.3; kill -SEGV %1; wait'
+
+```
